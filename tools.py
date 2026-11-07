@@ -34,7 +34,7 @@ def _get_client() -> GitHubClient:
 
 
 MAX_FILE_BYTES = 100_000
-MAX_TREE_ENTRIES = 300
+MAX_TREE_ENTRIES = 200
 
 
 def get_repo_info(owner: str, repo: str) -> dict:

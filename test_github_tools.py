@@ -43,16 +43,18 @@ class RepoInfoTest(unittest.TestCase):
 
 
 class FileTreeTest(unittest.TestCase):
-    def test_keeps_only_blobs_and_truncates(self):
-        tree = [{"path": f"f{i}.py", "type": "blob"} for i in range(tools.MAX_TREE_ENTRIES + 5)]
+    def test_keeps_only_blobs_and_truncates_overlong_list(self):
+        # 超长列表：250 个文件（> 200 上限），另有 1 个目录节点应被过滤
+        tree = [{"path": f"f{i}.py", "type": "blob"} for i in range(250)]
         tree.append({"path": "src", "type": "tree"})
         use_fake({
             "/repos/o/r/git/trees/main": {"ok": True, "status": 200, "data": {"tree": tree}}
         })
         result = tools.get_file_tree("o", "r")
-        self.assertEqual(result["count"], tools.MAX_TREE_ENTRIES + 5)
+        self.assertEqual(result["count"], 250)
         self.assertTrue(result["truncated"])
-        self.assertEqual(len(result["files"]), tools.MAX_TREE_ENTRIES)
+        self.assertEqual(len(result["files"]), 200)
+        self.assertEqual(result["files"][-1], "f199.py")
         self.assertNotIn("src", result["files"])
 
 

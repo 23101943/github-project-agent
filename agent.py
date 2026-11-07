@@ -17,10 +17,17 @@ def build_client() -> tuple[OpenAI, str]:
     return OpenAI(api_key=api_key, base_url=base_url), model
 
 
-def run_agent(question: str, trace: bool = False, max_steps: int = 5) -> tuple[str, list]:
+SYSTEM_PROMPT = (
+    "你是一个 GitHub 项目分析 Agent，可以调用工具获取真实数据。"
+    "分析仓库时先用 get_repo_info 和 get_file_tree 了解整体，"
+    "再用 get_file_content 读取关键文件；结论必须注明证据文件名，不要臆测。"
+)
+
+
+def run_agent(question: str, trace: bool = False, max_steps: int = 6) -> tuple[str, list]:
     client, model = build_client()
     messages = [
-        {"role": "system", "content": "你是一个可以调用工具的助手，需要时间时请调用 get_current_time。"},
+        {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
     trace_log = []
@@ -43,13 +50,16 @@ def run_agent(question: str, trace: bool = False, max_steps: int = 5) -> tuple[s
 
         for tc in msg.tool_calls:
             name = tc.function.name
-            args = json.loads(tc.function.arguments or "{}")
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except json.JSONDecodeError:
+                args = {}
             func = TOOL_FUNCTIONS.get(name)
             result = func(**args) if func else f"未知工具：{name}"
             trace_log.append({"step": step, "tool": name, "arguments": args, "result": result})
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": str(result)})
 
-    return "已达最大步数，未得到最终回答。", trace_log
+    return f"已达到最大步数 {max_steps}，为保证安全停止执行；请缩小问题范围或提高 --max-steps。", trace_log
 
 
 def main() -> None:
@@ -57,6 +67,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="GitHub 项目分析 Agent")
     parser.add_argument("--trace", action="store_true", help="输出并保存执行轨迹 agent_trace.json")
     parser.add_argument("--question", default="", help="要问的问题；不传则交互输入")
+    parser.add_argument("--max-steps", type=int, default=6, help="最大循环步数，超过后安全退出")
     args = parser.parse_args()
 
     print("你好，我是 GitHub 项目分析 Agent，已经准备就绪。")
@@ -65,7 +76,7 @@ def main() -> None:
         print("没有输入问题。")
         return
 
-    answer, trace_log = run_agent(question, trace=args.trace)
+    answer, trace_log = run_agent(question, trace=args.trace, max_steps=args.max_steps)
     print(answer)
 
     if args.trace:

@@ -64,7 +64,7 @@ def get_file_tree(owner: str, repo: str, branch: str = "main") -> dict:
         return result
     data = result["data"]
     files = [node["path"] for node in data.get("tree", []) if node.get("type") == "blob"]
-    truncated = len(files) > MAX_TREE_ENTRIES
+    truncated = bool(data.get("truncated")) or len(files) > MAX_TREE_ENTRIES
     return {
         "ok": True,
         "branch": branch,

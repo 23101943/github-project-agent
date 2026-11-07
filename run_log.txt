@@ -10,55 +10,28 @@ test_propagates_error (test_github_tools.FileContentTest.test_propagates_error) 
 test_truncates_at_200_lines (test_github_tools.FileContentTest.test_truncates_at_200_lines) ... ok
 test_keeps_only_blobs_and_truncates_overlong_list (test_github_tools.FileTreeTest.test_keeps_only_blobs_and_truncates_overlong_list) ... ok
 test_extracts_fields (test_github_tools.RepoInfoTest.test_extracts_fields) ... ok
+test_functions_and_schema_names_match (test_github_tools.ToolRegistryTest.test_functions_and_schema_names_match) ... ok
+test_schema_params_exist_in_function_signature (test_github_tools.ToolRegistryTest.test_schema_params_exist_in_function_signature) ... ok
+test_schema_required_and_descriptions (test_github_tools.ToolRegistryTest.test_schema_required_and_descriptions) ... ok
 ----------------------------------------------------------------------
-Ran 11 tests in 1.782s
+Ran 14 tests in 1.439s
 OK
 
-PS C:\github-project-agent> .\venv\Scripts\python.exe run_tools_demo.py
+PS C:\github-project-agent> .\venv\Scripts\python.exe agent.py --max-steps 1 --question "分析 23101943/github-project-agent"
+你好，我是 GitHub 项目分析 Agent，已经准备就绪。
+已达到最大步数 1，为保证安全停止执行；请缩小问题范围或提高 --max-steps。
 
-== 仓库信息 ==
-{
- "ok": true,
- "full_name": "23101943/github-project-agent",
- "description": null,
- "default_branch": "main",
- "language": "Python",
- "stars": 0,
- "forks": 0,
- "open_issues": 0,
- "updated_at": "2026-11-07T13:01:56Z",
- "html_url": "https://github.com/23101943/github-project-agent"
-}
-
-== 文件树 ==
-{
- "ok": true,
- "branch": "main",
- "count": 15,
- "truncated": false,
- "files": [
-  ".env.example",
-  ".github/workflows/tests.yml",
-  ".gitignore",
-  "README.md",
-  "REPORT.md",
-  "agent.py",
-  "agent_trace.json",
-  "github_client.py",
-  "make_report.py",
-  "requirements.txt",
-  "run_log.txt",
-  "run_tools_demo.py",
-  "test_github_client.py",
-  "test_github_tools.py",
-  "tools.py"
- ]
-}
-
-== 文件内容 github_client.py ==
-{
- "ok": true,
- "size": 3951,
- "truncated": false,
- "head": "\"\"\"GitHub API 客户端：自动带 Token、区分错误类型、限流退避一次。\"\"\"\n\nimport os\nimport time\n\nimport httpx\n\nGITHUB_API = \"https://api.github.com\"\n\n\nclass GitHubClient:\n    \"\"\"封装 GitHub REST API 调用，错误以结构化 dict 返回，不静默吞掉。\"\"\"\n\n "
-}
+PS C:\github-project-agent> .\venv\Scripts\python.exe -c "print_trace"
+step 1 | assistant | None
+step 1 | get_repo_info | {'owner': '23101943', 'repo': 'github-project-agent'}
+step 1 | get_file_tree | {'owner': '23101943', 'repo': 'github-project-agent'}
+step 2 | assistant | None
+step 2 | get_file_content | {'owner': '23101943', 'repo': 'github-project-agent', 'path': 'tools.py'}
+step 2 | get_file_content | {'owner': '23101943', 'repo': 'github-project-agent', 'path': 'agent.py'}
+step 3 | assistant | None
+step 3 | get_file_content | {'owner': '23101943', 'path': 'test_github_tools.py', 'repo': 'github-project-agent'}
+step 3 | get_file_content | {'owner': '23101943', 'path': 'test_github_client.py', 'repo': 'github-project-agent'}
+step 3 | get_file_content | {'owner': '23101943', 'path': '.github/workflows/tests.yml', 'repo': 'github-project-agent'}
+step 4 | assistant | None
+step 4 | get_file_content | {'owner': '23101943', 'path': 'github_client.py', 'repo': 'github-project-agent'}
+step 5 | assistant | None

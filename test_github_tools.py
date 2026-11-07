@@ -156,5 +156,36 @@ class FileContentTest(unittest.TestCase):
         self.assertEqual(result["error_type"], "not_found")
 
 
+class ToolRegistryTest(unittest.TestCase):
+    """注册表与 Schema 一致：函数集合、必填参数、参数说明都要对得上。"""
+
+    def test_functions_and_schema_names_match(self):
+        schema_names = {spec["function"]["name"] for spec in tools.TOOLS}
+        self.assertEqual(schema_names, set(tools.TOOL_FUNCTIONS))
+
+    def test_schema_required_and_descriptions(self):
+        for spec in tools.TOOLS:
+            fn = spec["function"]
+            self.assertEqual(spec["type"], "function")
+            self.assertTrue(fn["description"], f"{fn['name']} 缺少 description")
+            params = fn["parameters"]
+            self.assertEqual(params["type"], "object")
+            props = params["properties"]
+            for key in params.get("required", []):
+                self.assertIn(key, props, f"{fn['name']} 必填参数 {key} 不在 properties 中")
+            for key, meta in props.items():
+                self.assertIn("description", meta, f"{fn['name']}.{key} 缺少参数说明")
+                self.assertIn("type", meta, f"{fn['name']}.{key} 缺少参数类型")
+
+    def test_schema_params_exist_in_function_signature(self):
+        import inspect
+        for spec in tools.TOOLS:
+            fn = spec["function"]
+            func = tools.TOOL_FUNCTIONS[fn["name"]]
+            allowed = set(inspect.signature(func).parameters)
+            for key in fn["parameters"]["properties"]:
+                self.assertIn(key, allowed, f"{fn['name']} Schema 中的 {key} 不在函数签名里")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -54,7 +54,7 @@ requirements.txt / .gitignore / agent_trace.json
 ## 4. tools.py（6,260 字节）
 
 做得好的地方：
-- **上下文保护成体系**：`MAX_FILE_BYTES = 100_000`、`MAX_TREE_ENTRIES = 300`；`get_file_content` 超限只返回元数据 + 提示“请改用局部路径或缩小范围”；`get_file_tree` 只保留 `type == "blob"`（排除目录节点），并返回 `count` 与 `truncated`。
+- **上下文保护成体系**：`MAX_FILE_BYTES = 100_000`、`MAX_TREE_ENTRIES = 200`；`get_file_content` 超限只返回元数据 + 提示“请改用局部路径或缩小范围”；`get_file_tree` 只保留 `type == "blob"`（排除目录节点），返回前 200 项并附 `count` 与 `truncated`。
 - `get_file_content` 用 base64 解码 + `errors="replace"`，不会因非 UTF-8 内容炸掉。
 - `get_current_time` 在 `zoneinfo` 缺失时对 `Asia/Shanghai`/`UTC` 做固定偏移兜底，适配精简容器镜像。
 - JSON Schema 与函数签名基本一致，`required` 声明正确。

@@ -39,7 +39,15 @@ class GitHubClient:
                 "message": "未配置 GITHUB_TOKEN，请在 .env 中设置后重试。",
             }
 
-        resp = self.client.get(path, params=params)
+        try:
+            resp = self.client.get(path, params=params)
+        except httpx.HTTPError as exc:
+            return {
+                "ok": False,
+                "status": 0,
+                "error_type": "network",
+                "message": f"网络请求失败：{exc.__class__.__name__}，请检查网络后重试。",
+            }
         self._record_rate(resp)
 
         if resp.status_code == 401:
@@ -82,9 +90,19 @@ class GitHubClient:
                 "message": f"GitHub 返回错误：{resp.status_code}",
             }
 
+        try:
+            data = resp.json()
+        except ValueError:
+            return {
+                "ok": False,
+                "status": resp.status_code,
+                "error_type": "bad_response",
+                "message": "GitHub 返回了非 JSON 内容，可能是网关错误页。",
+            }
+
         return {
             "ok": True,
             "status": resp.status_code,
-            "data": resp.json(),
+            "data": data,
             "rate": self.last_rate,
         }

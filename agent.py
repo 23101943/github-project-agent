@@ -55,7 +55,13 @@ def run_agent(question: str, trace: bool = False, max_steps: int = 6) -> tuple[s
             except json.JSONDecodeError:
                 args = {}
             func = TOOL_FUNCTIONS.get(name)
-            result = func(**args) if func else f"未知工具：{name}"
+            if not func:
+                result = f"未知工具：{name}"
+            else:
+                try:
+                    result = func(**args)
+                except Exception as exc:  # 工具异常回喂给模型，让循环继续而不是整体崩溃
+                    result = f"工具调用失败：{exc.__class__.__name__}: {exc}"
             trace_log.append({"step": step, "tool": name, "arguments": args, "result": result})
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": str(result)})
 

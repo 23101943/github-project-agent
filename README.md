@@ -46,6 +46,8 @@ GITHUB_TOKEN=你的 GitHub PAT（只需 public_repo 读权限）
 真实演示的期望输出（本机实测）：仓库信息 `language=Python, default_branch=main, stars=0`；
 文件树 `count=11, truncated=false`；读取 `github_client.py` 返回 `size=3951, truncated=false`。
 
+完整的本机运行记录（命令 + 输出）见仓库根目录 `run_log.txt`。
+
 ## 目录结构
 
 ```

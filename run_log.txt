@@ -1,0 +1,59 @@
+﻿PS C:\github-project-agent> .\venv\Scripts\python.exe -m unittest -v test_github_client test_github_tools
+test_401_returns_auth_error (test_github_client.GitHubClientErrorTests.test_401_returns_auth_error) ... ok
+test_403_rate_limit_retries_once_then_returns_error (test_github_client.GitHubClientErrorTests.test_403_rate_limit_retries_once_then_returns_error) ... ok
+test_404_returns_not_found (test_github_client.GitHubClientErrorTests.test_404_returns_not_found) ... ok
+test_decodes_small_file (test_github_tools.FileContentTest.test_decodes_small_file) ... ok
+test_oversize_returns_metadata_only (test_github_tools.FileContentTest.test_oversize_returns_metadata_only) ... ok
+test_propagates_error (test_github_tools.FileContentTest.test_propagates_error) ... ok
+test_keeps_only_blobs_and_truncates_overlong_list (test_github_tools.FileTreeTest.test_keeps_only_blobs_and_truncates_overlong_list) ... ok
+test_extracts_fields (test_github_tools.RepoInfoTest.test_extracts_fields) ... ok
+----------------------------------------------------------------------
+Ran 8 tests in 1.756s
+OK
+
+PS C:\github-project-agent> .\venv\Scripts\python.exe run_tools_demo.py
+
+== 仓库信息 ==
+{
+ "ok": true,
+ "full_name": "23101943/github-project-agent",
+ "description": null,
+ "default_branch": "main",
+ "language": "Python",
+ "stars": 0,
+ "forks": 0,
+ "open_issues": 0,
+ "updated_at": "2026-11-07T12:52:16Z",
+ "html_url": "https://github.com/23101943/github-project-agent"
+}
+
+== 文件树 ==
+{
+ "ok": true,
+ "branch": "main",
+ "count": 13,
+ "truncated": false,
+ "files": [
+  ".env.example",
+  ".gitignore",
+  "README.md",
+  "REPORT.md",
+  "agent.py",
+  "agent_trace.json",
+  "github_client.py",
+  "make_report.py",
+  "requirements.txt",
+  "run_tools_demo.py",
+  "test_github_client.py",
+  "test_github_tools.py",
+  "tools.py"
+ ]
+}
+
+== 文件内容 github_client.py ==
+{
+ "ok": true,
+ "size": 3951,
+ "truncated": false,
+ "head": "\"\"\"GitHub API 客户端：自动带 Token、区分错误类型、限流退避一次。\"\"\"\n\nimport os\nimport time\n\nimport httpx\n\nGITHUB_API = \"https://api.github.com\"\n\n\nclass GitHubClient:\n    \"\"\"封装 GitHub REST API 调用，错误以结构化 dict 返回，不静默吞掉。\"\"\"\n\n "
+}

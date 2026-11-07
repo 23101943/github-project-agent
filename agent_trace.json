@@ -1,0 +1,30 @@
+[
+  {
+    "step": 1,
+    "assistant_content": "",
+    "tool_calls": [
+      {
+        "id": "call_00_ET_jZ3GnliMYLZ58JT91poD1949",
+        "function": {
+          "arguments": "{\"timezone\": \"Asia/Shanghai\"}",
+          "name": "get_current_time"
+        },
+        "type": "function",
+        "index": 0
+      }
+    ]
+  },
+  {
+    "step": 1,
+    "tool": "get_current_time",
+    "arguments": {
+      "timezone": "Asia/Shanghai"
+    },
+    "result": "2026-11-07 18:36:35 Asia/Shanghai"
+  },
+  {
+    "step": 2,
+    "assistant_content": "现在是 **2026年11月7日 18:36:35**（Asia/Shanghai，北京时间）。",
+    "tool_calls": null
+  }
+]

@@ -2,13 +2,16 @@
 test_401_returns_auth_error (test_github_client.GitHubClientErrorTests.test_401_returns_auth_error) ... ok
 test_403_rate_limit_retries_once_then_returns_error (test_github_client.GitHubClientErrorTests.test_403_rate_limit_retries_once_then_returns_error) ... ok
 test_404_returns_not_found (test_github_client.GitHubClientErrorTests.test_404_returns_not_found) ... ok
+test_binary_content_returns_metadata_only (test_github_tools.FileContentTest.test_binary_content_returns_metadata_only) ... ok
 test_decodes_small_file (test_github_tools.FileContentTest.test_decodes_small_file) ... ok
+test_empty_file_is_friendly (test_github_tools.FileContentTest.test_empty_file_is_friendly) ... ok
 test_oversize_returns_metadata_only (test_github_tools.FileContentTest.test_oversize_returns_metadata_only) ... ok
 test_propagates_error (test_github_tools.FileContentTest.test_propagates_error) ... ok
+test_truncates_at_200_lines (test_github_tools.FileContentTest.test_truncates_at_200_lines) ... ok
 test_keeps_only_blobs_and_truncates_overlong_list (test_github_tools.FileTreeTest.test_keeps_only_blobs_and_truncates_overlong_list) ... ok
 test_extracts_fields (test_github_tools.RepoInfoTest.test_extracts_fields) ... ok
 ----------------------------------------------------------------------
-Ran 8 tests in 1.756s
+Ran 11 tests in 1.782s
 OK
 
 PS C:\github-project-agent> .\venv\Scripts\python.exe run_tools_demo.py
@@ -23,7 +26,7 @@ PS C:\github-project-agent> .\venv\Scripts\python.exe run_tools_demo.py
  "stars": 0,
  "forks": 0,
  "open_issues": 0,
- "updated_at": "2026-11-07T12:52:16Z",
+ "updated_at": "2026-11-07T13:01:56Z",
  "html_url": "https://github.com/23101943/github-project-agent"
 }
 
@@ -31,10 +34,11 @@ PS C:\github-project-agent> .\venv\Scripts\python.exe run_tools_demo.py
 {
  "ok": true,
  "branch": "main",
- "count": 13,
+ "count": 15,
  "truncated": false,
  "files": [
   ".env.example",
+  ".github/workflows/tests.yml",
   ".gitignore",
   "README.md",
   "REPORT.md",
@@ -43,6 +47,7 @@ PS C:\github-project-agent> .\venv\Scripts\python.exe run_tools_demo.py
   "github_client.py",
   "make_report.py",
   "requirements.txt",
+  "run_log.txt",
   "run_tools_demo.py",
   "test_github_client.py",
   "test_github_tools.py",

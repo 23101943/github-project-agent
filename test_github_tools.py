@@ -76,6 +76,62 @@ class FileContentTest(unittest.TestCase):
         result = tools.get_file_content("o", "r", "a.py")
         self.assertFalse(result["truncated"])
         self.assertEqual(result["content"], raw)
+        self.assertEqual(result["lines"], 1)
+
+    def test_empty_file_is_friendly(self):
+        use_fake({
+            "/repos/o/r/contents/empty.txt": {
+                "ok": True,
+                "status": 200,
+                "data": {"path": "empty.txt", "size": 0, "encoding": "base64", "content": ""},
+            }
+        })
+        result = tools.get_file_content("o", "r", "empty.txt")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["content"], "")
+        self.assertEqual(result["lines"], 0)
+        self.assertFalse(result["truncated"])
+        self.assertEqual(result["message"], "空文件。")
+
+    def test_binary_content_returns_metadata_only(self):
+        raw = b"\x00\x01\x02binary"
+        use_fake({
+            "/repos/o/r/contents/logo.bin": {
+                "ok": True,
+                "status": 200,
+                "data": {
+                    "path": "logo.bin",
+                    "size": len(raw),
+                    "encoding": "base64",
+                    "content": base64.b64encode(raw).decode(),
+                },
+            }
+        })
+        result = tools.get_file_content("o", "r", "logo.bin")
+        self.assertTrue(result["binary"])
+        self.assertNotIn("content", result)
+        self.assertIn("二进制", result["message"])
+
+    def test_truncates_at_200_lines(self):
+        raw = "".join(f"line{i}\n" for i in range(1, 251))
+        use_fake({
+            "/repos/o/r/contents/long.py": {
+                "ok": True,
+                "status": 200,
+                "data": {
+                    "path": "long.py",
+                    "size": len(raw),
+                    "encoding": "base64",
+                    "content": base64.b64encode(raw.encode()).decode(),
+                },
+            }
+        })
+        result = tools.get_file_content("o", "r", "long.py")
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["lines"], 250)
+        self.assertEqual(len(result["content"].splitlines()), 200)
+        self.assertEqual(result["content"].splitlines()[-1], "line200")
+        self.assertIn("仅返回前 200 行", result["message"])
 
     def test_oversize_returns_metadata_only(self):
         use_fake({

@@ -34,6 +34,7 @@ def _get_client() -> GitHubClient:
 
 
 MAX_FILE_BYTES = 100_000
+MAX_FILE_LINES = 200
 MAX_TREE_ENTRIES = 200
 
 
@@ -75,8 +76,8 @@ def get_file_tree(owner: str, repo: str, branch: str = "main") -> dict:
 
 
 def get_file_content(owner: str, repo: str, path: str, ref: str = "main",
-                     max_bytes: int = MAX_FILE_BYTES) -> dict:
-    """读取单个文件内容；超过 max_bytes 只返回元数据，避免把上下文撑爆。"""
+                     max_bytes: int = MAX_FILE_BYTES, max_lines: int = MAX_FILE_LINES) -> dict:
+    """读取单个文件：base64 解码；超 200 行或超 100KB 时截断并标注；空文件/二进制友好返回。"""
     result = _get_client().get(f"/repos/{owner}/{repo}/contents/{path}", params={"ref": ref})
     if not result.get("ok"):
         return result
@@ -88,13 +89,49 @@ def get_file_content(owner: str, repo: str, path: str, ref: str = "main",
             "path": data.get("path"),
             "size": size,
             "truncated": True,
-            "message": f"文件 {size} 字节，超过上限 {max_bytes}，仅返回元数据，请改用局部路径或缩小范围。",
+            "message": f"文件 {size} 字节，超过上限 {max_bytes} 或非文本内容，仅返回元数据，请改用局部路径或缩小范围。",
         }
-    content = base64.b64decode(data.get("content", "")).decode("utf-8", errors="replace")
+
+    raw = base64.b64decode(data.get("content", "") or "")
+    if b"\x00" in raw:  # 二进制文件：解码后无意义的 NUL 字节，直接给元数据
+        return {
+            "ok": True,
+            "path": data.get("path"),
+            "size": size,
+            "truncated": True,
+            "binary": True,
+            "message": f"文件 {size} 字节，判定为二进制内容，不做文本解码。",
+        }
+
+    content = raw.decode("utf-8", errors="replace")
+    if content == "":
+        return {
+            "ok": True,
+            "path": data.get("path"),
+            "size": size,
+            "lines": 0,
+            "truncated": False,
+            "content": "",
+            "message": "空文件。",
+        }
+
+    lines = content.splitlines()
+    if len(lines) > max_lines:
+        return {
+            "ok": True,
+            "path": data.get("path"),
+            "size": size,
+            "lines": len(lines),
+            "truncated": True,
+            "content": "\n".join(lines[:max_lines]),
+            "message": f"文件共 {len(lines)} 行，超过上限 {max_lines} 行，仅返回前 {max_lines} 行。",
+        }
+
     return {
         "ok": True,
         "path": data.get("path"),
         "size": size,
+        "lines": len(lines),
         "truncated": False,
         "content": content,
     }

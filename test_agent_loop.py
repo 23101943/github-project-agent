@@ -3,6 +3,7 @@
 import inspect
 import json
 import unittest
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -61,8 +62,16 @@ class AgentLoopTest(unittest.TestCase):
         self.assertIn("已达到最大步数 3", answer)
         self.assertEqual(completions.calls, 3)  # 只请求了 max_steps 次，证明不会死循环
         self.assertEqual(trace[-1]["stop_reason"], "max_steps")
-        tool_records = [item for item in trace if "tool" in item]
+        tool_records = [item for item in trace if "tool_name" in item]
         self.assertEqual(len(tool_records), 3)
+        for record in tool_records:
+            self.assertEqual(
+                set(record),
+                {"step", "tool_name", "arguments", "result_summary", "timestamp"},
+            )
+            self.assertEqual(record["tool_name"], "get_current_time")
+            datetime.fromisoformat(record["timestamp"])  # 必须是合法的 ISO 8601 时间
+            self.assertIsInstance(record["result_summary"], str)
         tool_messages = [m for m in completions.last_kwargs["messages"] if m["role"] == "tool"]
         self.assertEqual(len(tool_messages), 3)
         self.assertTrue(tool_messages[0]["content"].startswith("[step 1] "))
@@ -94,8 +103,10 @@ class AgentLoopTest(unittest.TestCase):
             answer, trace = agent.run_agent("分析仓库")
 
         self.assertEqual(answer, "已根据错误调整")
-        tool_record = [item for item in trace if "tool" in item][0]
-        self.assertTrue(tool_record["result"].startswith("工具调用失败：RuntimeError"))
+        tool_record = [item for item in trace if "tool_name" in item][0]
+        self.assertEqual(tool_record["tool_name"], "boom")
+        self.assertTrue(tool_record["result_summary"].startswith("工具调用失败：RuntimeError"))
+        datetime.fromisoformat(tool_record["timestamp"])
         fed_back = [m for m in completions.last_kwargs["messages"] if m["role"] == "tool"][0]
         self.assertIn("[step 1] 工具调用失败：RuntimeError", fed_back["content"])
         self.assertEqual(completions.calls, 2)

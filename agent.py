@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -24,6 +25,20 @@ SYSTEM_PROMPT = (
     "需要输出分析报告时，按「概况 / 结构 / 关键文件 / 结论与建议」组织，"
     "并在每条关键结论后标注对应的工具调用步骤，例如 [见 trace step 2]。"
 )
+
+
+def _result_summary(result) -> str:
+    """把工具结果压成简短摘要：优先保留 ok/关键计数，再附前 120 字符。"""
+    if isinstance(result, dict):
+        parts = []
+        for key in ("ok", "count", "lines", "size", "truncated", "error_type", "status"):
+            if key in result:
+                parts.append(f"{key}={result[key]}")
+        text = json.dumps(result, ensure_ascii=False)
+        head = text[:120]
+        return f"{', '.join(parts)} | {head}" if parts else head
+    text = str(result)
+    return text[:160]
 
 
 def run_agent(question: str, trace: bool = False, max_steps: int = 10) -> tuple[str, list]:
@@ -67,7 +82,13 @@ def run_agent(question: str, trace: bool = False, max_steps: int = 10) -> tuple[
                     result = func(**args)
                 except Exception as exc:  # 工具异常回喂给模型，让循环继续而不是整体崩溃
                     result = f"工具调用失败：{exc.__class__.__name__}: {exc}"
-            trace_log.append({"step": step, "tool": name, "arguments": args, "result": result})
+            trace_log.append({
+                "step": step,
+                "tool_name": name,
+                "arguments": args,
+                "result_summary": _result_summary(result),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": f"[step {step}] {result}"})
 
     trace_log.append({"step": step, "stop_reason": "max_steps"})

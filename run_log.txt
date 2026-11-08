@@ -35,3 +35,34 @@ step 3 | get_file_content | {'owner': '23101943', 'path': '.github/workflows/tes
 step 4 | assistant | None
 step 4 | get_file_content | {'owner': '23101943', 'path': 'github_client.py', 'repo': 'github-project-agent'}
 step 5 | assistant | None
+
+# ---- 2026-11-08 任务07/08 更新后重跑（while 循环、默认 max_steps=10、trace 记录 stop_reason）----
+PS C:\github-project-agent> .\venv\Scripts\python.exe -m unittest -v test_github_client test_github_tools test_agent_loop
+test_401_returns_auth_error ... ok
+test_403_rate_limit_retries_once_then_returns_error ... ok
+test_404_returns_not_found ... ok
+test_binary_content_returns_metadata_only ... ok
+test_decodes_small_file ... ok
+test_empty_file_is_friendly ... ok
+test_oversize_returns_metadata_only ... ok
+test_propagates_error ... ok
+test_truncates_at_200_lines ... ok
+test_keeps_only_blobs_and_truncates_overlong_list ... ok
+test_extracts_fields ... ok
+test_functions_and_schema_names_match ... ok
+test_schema_params_exist_in_function_signature ... ok
+test_schema_required_and_descriptions ... ok
+test_default_max_steps_is_10 (test_agent_loop.AgentLoopTest.test_default_max_steps_is_10) ... ok
+test_returns_final_answer_and_marks_stop_reason (test_agent_loop.AgentLoopTest.test_returns_final_answer_and_marks_stop_reason) ... ok
+test_stops_at_max_steps_without_infinite_loop (test_agent_loop.AgentLoopTest.test_stops_at_max_steps_without_infinite_loop) ... ok
+test_tool_exception_is_fed_back_and_loop_continues (test_agent_loop.AgentLoopTest.test_tool_exception_is_fed_back_and_loop_continues) ... ok
+----------------------------------------------------------------------
+Ran 18 tests in 1.641s
+OK
+
+PS C:\github-project-agent> .\venv\Scripts\python.exe agent.py --max-steps 1 --question "分析 23101943/github-project-agent"
+你好，我是 GitHub 项目分析 Agent，已经准备就绪。
+已达到最大步数 1，为保证安全停止执行；请缩小问题范围或提高 --max-steps。
+
+PS C:\github-project-agent> .\venv\Scripts\python.exe make_report.py
+[已写入 REPORT.md 与 agent_trace.json；agent_trace.json 末尾记录 {"step": N, "stop_reason": "final_answer"}]

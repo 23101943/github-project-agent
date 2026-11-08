@@ -21,23 +21,28 @@ SYSTEM_PROMPT = (
     "你是一个 GitHub 项目分析 Agent，可以调用工具获取真实数据。"
     "分析仓库时先用 get_repo_info 和 get_file_tree 了解整体，"
     "再用 get_file_content 读取关键文件；结论必须注明证据文件名，不要臆测。"
+    "需要输出分析报告时，按「概况 / 结构 / 关键文件 / 结论与建议」组织，"
+    "并在每条关键结论后标注对应的工具调用步骤，例如 [见 trace step 2]。"
 )
 
 
-def run_agent(question: str, trace: bool = False, max_steps: int = 6) -> tuple[str, list]:
+def run_agent(question: str, trace: bool = False, max_steps: int = 10) -> tuple[str, list]:
     client, model = build_client()
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
     trace_log = []
+    step = 0
 
-    for step in range(1, max_steps + 1):
+    while step < max_steps:
+        step += 1
         resp = client.chat.completions.create(model=model, messages=messages, tools=TOOLS)
         msg = resp.choices[0].message
         trace_log.append({"step": step, "assistant_content": msg.content, "tool_calls": msg.tool_calls and [tc.model_dump() for tc in msg.tool_calls]})
 
         if not msg.tool_calls:
+            trace_log.append({"step": step, "stop_reason": "final_answer"})
             return msg.content or "", trace_log
 
         messages.append(
@@ -63,8 +68,9 @@ def run_agent(question: str, trace: bool = False, max_steps: int = 6) -> tuple[s
                 except Exception as exc:  # 工具异常回喂给模型，让循环继续而不是整体崩溃
                     result = f"工具调用失败：{exc.__class__.__name__}: {exc}"
             trace_log.append({"step": step, "tool": name, "arguments": args, "result": result})
-            messages.append({"role": "tool", "tool_call_id": tc.id, "content": str(result)})
+            messages.append({"role": "tool", "tool_call_id": tc.id, "content": f"[step {step}] {result}"})
 
+    trace_log.append({"step": step, "stop_reason": "max_steps"})
     return f"已达到最大步数 {max_steps}，为保证安全停止执行；请缩小问题范围或提高 --max-steps。", trace_log
 
 
@@ -73,7 +79,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="GitHub 项目分析 Agent")
     parser.add_argument("--trace", action="store_true", help="输出并保存执行轨迹 agent_trace.json")
     parser.add_argument("--question", default="", help="要问的问题；不传则交互输入")
-    parser.add_argument("--max-steps", type=int, default=6, help="最大循环步数，超过后安全退出")
+    parser.add_argument("--max-steps", type=int, default=10, help="最大循环步数，超过后安全退出")
     args = parser.parse_args()
 
     print("你好，我是 GitHub 项目分析 Agent，已经准备就绪。")

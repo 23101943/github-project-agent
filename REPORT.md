@@ -1,93 +1,87 @@
-# 项目分析报告：23101943/github-project-agent
+# github-project-agent 项目分析报告
 
-> 本报告由 `agent.py` 多步 Agent Loop 真实调用 GitHub 工具生成，证据为仓库元数据、`get_file_tree` 文件列表与 `get_file_content` 读取到的文件正文；运行记录见 `run_log.txt`、执行轨迹见 `agent_trace.json`，CI 见 https://github.com/23101943/github-project-agent/actions
+> 证据来源为下方 trace step：step 1 = `get_repo_info` + `get_file_tree`；step 2 = 读取 `agent.py` / `tools.py` / `github_client.py` / `README.md`；step 3 = 读取三个测试文件 + `.github/workflows/tests.yml` + `requirements.txt` + `.env.example`；step 4 = 读取 `make_report.py` + `.gitignore` + `run_tools_demo.py`。
 
-## 1. 仓库概况
+## 概况
 
-| 项目 | 值 | 证据 |
-|---|---|---|
-| 全名 | 23101943/github-project-agent | `get_repo_info` |
-| 默认分支 / 语言 | main / Python | `get_repo_info` |
-| Star / Fork / Open issues | 0 / 0 / 0 | `get_repo_info` |
-| description | 未填写（`None`） | `get_repo_info` |
-| 文件总数 | 15（含 `.github/workflows/tests.yml`、`README.md`、`REPORT.md`） | `get_file_tree` |
+| 项 | 值 |
+|---|---|
+| 全名 | `23101943/github-project-agent` |
+| 描述 | 空（未填写仓库描述） |
+| 默认分支 / 语言 | `main` / Python |
+| Star / Fork / Issue | 0 / 0 / 0 |
+| 最近更新 | 2026-11-08 |
+| 文件总数 | 18（扁平结构，无包目录） |
 
-## 2. 架构：入口 / 工具层 / HTTP 层
+- 定位是一个可调用工具的**多步 Agent**：用 DeepSeek（OpenAI 兼容 SDK）驱动，通过 GitHub REST API 获取真实仓库数据 [见 trace step 2，README.md]。
+- 项目体量很小、无分发包配置（无 `pyproject.toml`/`setup.py`），属于教学/练习型工程：功能闭环（工具层 → HTTP 层 → Agent 循环 → 测试 → CI → 演示脚本 → 报告生成）但未产品化 [见 trace step 1，文件清单]。
+- README 明确列出"安全边界"四条：Token 仅从环境变量读、工具走白名单、内容大小上限、`--max-steps` 到点即停 [见 trace step 2，README.md]。
 
-```
-agent.py            入口与 LLM 工具调用循环（argparse，--max-steps / --trace）
-  └─ tools.py       工具实现 + JSON Schema（TOOL_MAP / TOOLS）
-      └─ github_client.py   httpx 封装：统一请求头、错误分类、限流退避一次
-test_github_client.py / test_github_tools.py   14 条 mock 单测
-run_tools_demo.py / make_report.py / run_log.txt / REPORT.md / agent_trace.json
-```
+## 结构
 
-调用链：`run_agent` → `chat.completions.create(tools=TOOLS)` → `tool_calls` → `TOOL_MAP[name](**args)` → `_get_client().get(...)` → 结构化成 dict 回填 `role:"tool"` → 再次请求模型。整条链路不依赖框架，只有 `openai` + `httpx` 两个直接依赖。
-
-## 3. 四个工具（`tools.py`）
-
-| 工具 | 签名 | 后端调用 | 关键保护 |
-|---|---|---|---|
-| `get_current_time` | `(timezone="Asia/Shanghai")` | 无网络，`zoneinfo` | `ZoneInfoNotFoundError` 时对 Asia/Shanghai、UTC 做固定偏移兜底，其余抛 `ValueError` |
-| `get_repo_info` | `(owner, repo)` | `GET /repos/{owner}/{repo}` | 只挑业务字段返回；错误 dict 原样透传 |
-| `get_file_tree` | `(owner, repo, branch="main")` | `GET /repos/{owner}/{repo}/git/trees/{branch}?recursive=1` | 仅保留 `type=="blob"`；`count` 为过滤后全量；返回前 `MAX_TREE_ENTRIES=200` 项并合并 API 自带 `truncated` 标志 |
-| `get_file_content` | `(owner, repo, path, ref="main", max_bytes=100_000, max_lines=200)` | `GET /repos/{owner}/{repo}/contents/{path}?ref=` | base64 解码；超 100KB 或 `encoding=="none"` 只回元数据；含 `\x00` 判二进制只回元数据；空文件返回 `message:"空文件。"`；超 200 行返回前 200 行并标注 `lines/truncated/message` |
-
-设计一致性：工具失败不抛异常，统一返回 `{ok: False, status, error_type, message}`；`_get_client()` 懒加载模块级单例，避免重复建连。
-
-## 4. 注册与 Schema（`TOOL_MAP` + `TOOLS`）
-
-- 双轨注册：`TOOL_MAP` 提供 name→callable 分发，`TOOLS` 提供 OpenAI function-calling 的 JSON Schema 声明。
-- 新增 `ToolRegistryTest` 三条断言保证两者不漂移：
-  1. `test_functions_and_schema_names_match`：Schema 名称集合 == `TOOL_MAP` 键集合；
-  2. `test_schema_required_and_descriptions`：`type=="function"`、函数有 description、`required` 必须出现在 `properties`、每个参数都有 `type` 与 `description`；
-  3. `test_schema_params_exist_in_function_signature`：Schema 里的参数必须真实存在于函数签名（防止模型传进无效参数）。
-- `agent.py` 侧三重护栏：未知工具返回 `"未知工具：{name}"`；`func(**args)` 异常被 `except Exception` 捕获并回喂 `"工具调用失败：..."`；`max_steps` 用尽返回安全停止提示。
-
-## 5. 多步 Loop 与安全退出（实测）
-
-`agent_trace.json` 记录一次真实运行，共 5 步、9 次工具调用：
+清晰的三层架构 + 测试 + 配套脚本：
 
 ```
-step 1 | get_repo_info(23101943/github-project-agent)
-step 1 | get_file_tree(23101943/github-project-agent)
-step 2 | get_file_content(tools.py) · get_file_content(agent.py)
-step 3 | get_file_content(test_github_tools.py) · (test_github_client.py) · (.github/workflows/tests.yml)
-step 4 | get_file_content(github_client.py)
-step 5 | assistant 输出最终报告
+agent.py              第3层：CLI + 多步工具调用循环
+tools.py              第2层：4 个工具函数 + JSON Schema + TOOL_MAP 白名单
+github_client.py      第1层：httpx 封装 GitHub REST，错误分类 + 限流退避
+test_github_client.py / test_github_tools.py / test_agent_loop.py   单测（全 mock）
+.github/workflows/tests.yml   CI
+run_tools_demo.py / run_selection_demo.py / make_report.py          演示与报告脚本
+REPORT.md / agent_trace.json / run_log.txt / tool_selection_log.txt 产物（已提交入库）
 ```
 
-第 1 步先取仓库元数据与文件树，之后每一步都基于上一步结果决定读哪些文件——这是“结果驱动决策”而非固定脚本。
+- 依赖方向单向：`github_client.py` 不依赖上层，`tools.py` 依赖 `github_client`，`agent.py` 只依赖 `TOOL_MAP/TOOLS`，分层干净、无循环导入 [见 trace step 2，三个核心文件的 import 段]。
+- 单测采用 unittest + mock/假客户端，**不需要真实 Token 和网络**，可 CI 化 [见 trace step 3，test_github_tools.py 的 `FakeClient`、test_github_client.py 的 `mock.patch`]。
 
-安全退出实测（`run_log.txt`）：
+## 关键文件
 
-```
-PS> .\venv\Scripts\python.exe agent.py --max-steps 1 --question "分析 23101943/github-project-agent"
-已达到最大步数 1，为保证安全停止执行；请缩小问题范围或提高 --max-steps。
-```
+### 1. `agent.py`（101 行）— 循环与安全上限
+- `run_agent()` 用 `while step < max_steps` 驱动：每次调用 `client.chat.completions.create(model, messages, tools=TOOLS)`，无 `tool_calls` 即视为最终答案并记录 `stop_reason: final_answer`；否则把 assistant 的 tool_calls 与每条 tool 结果（带 `[step N]` 前缀）回填 messages [见 trace step 2，agent.py]。
+- 工具派发走白名单 `TOOL_MAP.get(name)`，未知工具返回"未知工具：X"而不抛错；工具异常被捕获成"工具调用失败：..." 回喂模型，让循环继续而非整体崩溃 [见 trace step 2，agent.py]。
+- 达到 `max_steps` 后返回固定提示文案并记录 `stop_reason: max_steps`，防止死循环 [见 trace step 2，agent.py]。
+- 缺陷 1：`run_agent(question, trace: bool = False, ...)` 的 **`trace` 参数在函数体内完全未被使用**，是否落盘只由 `main()` 里的 `--trace` 分支决定——死参数，易误用 [见 trace step 2，agent.py]。
+- 缺陷 2：`json.loads(tc.function.arguments)` 失败时静默退化为 `args = {}`，模型传入畸形参数会被当成"空参数"执行，可能产生误导性结果而非可纠正的错误反馈 [见 trace step 2，agent.py]。
+- 缺陷 3：`trace_log` 里同一轮多个 tool_calls 共用同一 `step` 编号，且 `max_steps` 实际限制的是"模型调用轮次"而非"工具调用数"，语义与名称不完全一致（现有测试以单 tool_call/轮为前提，未覆盖并行多工具场景）[见 trace step 2，agent.py；见 trace step 3，test_agent_loop.py]。
 
-## 6. 测试与 CI
+### 2. `tools.py`（213 行）— 工具层与 Schema
+- 4 个工具：`get_current_time`、`get_repo_info`、`get_file_tree`、`get_file_content`；后三者返回结构化 dict，`ok=False` 时直接透传 HTTP 层错误 [见 trace step 2，tools.py]。
+- 硬上限常量：`MAX_FILE_BYTES = 100_000`、`MAX_FILE_LINES = 200`、`MAX_TREE_ENTRIES = 200`，超限返回 `truncated: True` + 提示，避免上下文爆炸 [见 trace step 2，tools.py]。
+- 健壮性细节做得好：base64 解码后检测 `\x00` 判定二进制、空文件、"encoding == none" 大文件三种情况分别友好返回；`get_file_tree` 只保留 `type == "blob"` 过滤目录节点 [见 trace step 2，tools.py]；这些分支均有对应单测 [见 trace step 3，test_github_tools.py]。
+- 缺陷 1：`get_file_content` 只截断返回**前 200 行**且**不支持 offset/续读参数**，超过 200 行的文件（如本仓库 `tools.py` 本身 213 行）后半部分模型永远读不到——我在本次分析中就遇到了这个限制（tools.py 返回 truncated）[见 trace step 2，tools.py 返回 `truncated: True`]。
+- 缺陷 2：`get_file_tree` 的 `branch` 默认硬编码 `"main"`，不读取 `get_repo_info` 返回的 `default_branch`，对默认分支为 `master` 的仓库会直接 404 [见 trace step 2，tools.py]。
+- 缺陷 3：`_client` 作为模块级全局单例缓存，Token/环境变化后不会重建，在测试中需手工 `tools._client = fake` 才能隔离 [见 trace step 2，tools.py；见 trace step 3，test_github_tools.py 的 `use_fake`]。
+- `TOOL_MAP` 与 `TOOLS` Schema 的一致性有专门的元测试守护（函数名集合相等、required 必须在 properties 中、Schema 参数必须存在于函数签名），这是本项目质量亮点 [见 trace step 3，test_github_tools.py 的 `ToolRegistryTest`]。
 
-- `Ran 14 tests in 1.442s` / `OK`（`run_log.txt`），全部 mock，不需要 Token 与网络。
-- `test_github_tools.py`：字段映射；250 blob + 1 tree → `count==250`、目录被过滤、`files` 恰 200 条、末项 `f199.py`；小文件解码；空文件；二进制；250 行 → 前 200 行（末行 `line200`，message 含“仅返回前 200 行”）；500KB 仅元数据；404 透传；以及 `ToolRegistryTest` 三条 Schema 一致性用例。
-- `test_github_client.py`：401→`auth`、404→`not_found`、403 限流两次后返回 `rate_limit` 且 `sleep` 恰好调用 1 次。
-- CI：`.github/workflows/tests.yml` 在 push 与手动触发时跑 `python -m unittest -v test_github_client test_github_tools`（Python 3.12，只装 `httpx`）。
+### 3. `github_client.py`（108 行）— HTTP 与错误分类
+- Token 从 `os.getenv("GITHUB_TOKEN")` 读取，缺失时直接返回 `error_type: missing_token` 而不发请求；headers 带 `Accept: application/vnd.github+json` 与固定 `User-Agent` [见 trace step 2，github_client.py]。
+- 错误分类完整且结构化（不吞异常）：`network` / `auth`(401) / `not_found`(404) / `rate_limit` / `forbidden`(403) / `http_error`(≥400) / `bad_response`(非 JSON，判断网关错误页) [见 trace step 2，github_client.py]。
+- 限流处理：403/429 时综合判断 `Retry-After`、`X-RateLimit-Remaining == "0"`、状态码 429，命中则 `time.sleep(wait)` 后**仅重试一次**（`_retried` 标志位），并用 `_record_rate` 记录 limit/remaining/reset [见 trace step 2，github_client.py]。
+- 缺陷 1：`Retry-After` 非数字时 `wait = 60`，即**同步阻塞最长 60 秒**，CLI 体验差且无日志告知用户正在等待；单测里靠 patch `time.sleep` 规避 [见 trace step 2，github_client.py；见 trace step 3，test_github_client.py]。
+- 缺陷 2：**无 5xx 重试、无分页支持（per_page/page）**，大仓库文件树只取一页；`httpx.Client` 也未在进程退出时显式 `close()`，属资源泄漏小隐患 [见 trace step 2，github_client.py]。
+- 缺陷 3：403 分支里 `is_rate_limited` 的判定条件较宽（有 `Retry-After` 即视为限流），GitHub 的 abuse-detection 与权限不足在语义上会被混为一类，仅靠 message 文案区分 [见 trace step 2，github_client.py]。
 
-## 7. 真实调用证据
+### 4. 工程配套
+- `make_report.py` 直接把一段固定提问（正是本次任务的题干）交给 `run_agent(max_steps=10)`，并落盘 `REPORT.md` + `agent_trace.json`，说明"带证据报告"是项目设计内的核心用例 [见 trace step 4，make_report.py]。
+- 安全卫生良好：`.gitignore` 忽略 `.env`、`venv/`、`__pycache__`；`.env.example` 只有占位符，无明文凭据 [见 trace step 3 `.env.example`；见 trace step 4 `.gitignore`]。
+- 但运行产物 `agent_trace.json`、`run_log.txt`、`tool_selection_log.txt`、`REPORT.md` 被提交入库，需确认其中不含 Token 或敏感请求头（现有代码不打印 header，风险低）[见 trace step 1，文件清单]。
 
-`run_tools_demo.py`（需 `.env` 中的 `GITHUB_TOKEN`）实际返回：仓库信息 JSON（`full_name`、`default_branch=main`、`language=Python`）、文件树 15 项、`github_client.py` 正文（3951 字节，`truncated=false`）。`max-steps` 与 14 条单测输出一并写入 `run_log.txt`。
+## 结论与建议
 
-## 8. 风险与改进建议
+**结论**
 
-1. **限流遥测被丢弃**：`github_client.get()` 成功时返回 `rate: last_rate`，但三个工具都重新组装 dict，`rate` 未透传，模型看不到剩余配额。
-2. **默认分支硬编码**：`get_file_tree` / `get_file_content` 的默认分支固定为 `main`，未串联 `get_repo_info` 的 `default_branch`，对非 main 仓库第一步就会 404。
-3. **路径/分支未做 URL 编码**：`path` 含空格、`#`、`?`，或分支名含 `/` 时会拼坏请求路径。
-4. **`trace` 形参未使用**：`run_agent(question, trace=False, ...)` 内从未读取 `trace`，落盘只在 `main()` 中发生，签名有误导性。
-5. **`tool_calls` 为空时 trace 记 `None` 而非 `[]`**：`msg.tool_calls and [...]` 的短路行为，下游消费需注意类型。
-6. **`httpx.Client` 未关闭**：无 `close()`/上下文管理器，短脚本场景会泄漏连接。
-7. **`agent.py` 循环本身无单测**：异常回喂、未知工具、`max_steps` 三条路径目前只有手工演示证据。
-8. **`agent_trace.json` 未加入 `.gitignore`**：它是运行产物，入库后容易成为“陈旧事实”来源（本报告已用最新一次运行覆盖它）。
+1. 这是一个结构清晰、分层规范的小型工具调用 Agent 范例：三层单向依赖 + 白名单派发 + 结构化错误 + 明确的大小与步数上限，安全边界设计是本项目最大优点 [见 trace step 2，README.md 与三个核心文件]。
+2. 测试覆盖是全 mock 的、可离线运行的，且包含 Schema 一致性的元测试，工程意识超出一般练习项目 [见 trace step 3，test_github_tools.py]。
+3. 主要短板集中在**未完成的部分**与**边界参数**上：trace 死参数、200 行不可续读、分支硬编码、阻塞式退避、CI 覆盖不全 [见 trace step 2、step 3]。
 
-## 9. 结论
+**建议（按优先级）**
 
-这是一个分层清晰、依赖极简（`openai` + `httpx`）的 GitHub 项目分析 Agent：工具层有明确的上下文预算（100KB / 200 行 / 200 项）与友好的空文件、二进制、超限、404 返回；注册表与 Schema 一致性已由单测守护；多步 Loop 能在 5 步内自主完成“概览 → 精读 → 交叉验证”的分析路径，并在 `--max-steps 1` 下按预期安全退出。主要短板是工具层与 Schema 的双轨手工同步（已加断言缓解）、分支/路径编码缺失，以及 `rate` 遥测未透传给模型。
+1. **修正 CI 覆盖缺口（高）**：`.github/workflows/tests.yml` 只跑 `test_github_client test_github_tools`，且只 `pip install httpx`；`test_agent_loop.py` 的 4 个用例（含 max_steps 死循环防护、异常回喂）从未在 CI 中执行。建议改为 `pip install -r requirements.txt` 并运行 `python -m unittest discover` [见 trace step 3]。
+2. **文档与实测口径不一致（中）**：README 运行说明写"5 个用例"，目录结构段落写"14 个单测"，实际两模块共 14 个、加上 `test_agent_loop.py` 共 18 个；`test_agent_loop.py` 也未出现在目录结构清单中。建议统一为实际数字并补录该文件 [见 trace step 2 README.md；见 trace step 3 三个测试文件]。
+3. **给 `get_file_content` 增加 `line_offset`/分页续读（高）**：当前 200 行截断会让模型对中大型文件"只看到开头"，直接影响分析结论完整性（本次读 `tools.py` 即被截断）[见 trace step 2，tools.py 返回 `truncated: True`]。
+4. **默认分支与全局单例改造（中）**：`get_file_tree` 的 `branch` 应允许由调用方从 `get_repo_info` 的 `default_branch` 传入（System Prompt 中加一句引导即可）；`_client` 改为显式 `init_client()` 或在 token 变化时重建，便于测试与多环境切换 [见 trace step 2，tools.py]。
+5. **清理死参数与静默降级（中）**：删除 `run_agent` 未使用的 `trace` 形参；参数 JSON 解析失败时回喂"参数解析失败：<原文>"给模型而不是悄悄替换成 `{}`；为并行多 tool_call 分配独立子步编号使 trace 更精确 [见 trace step 2，agent.py]。
+6. **退避与重试策略（低）**：把 `time.sleep` 换成带上限的指数退避 + 日志提示（避免 CLI 无响应 60 秒），补充 5xx 重试与 `httpx.Client` 的 `close()`/上下文管理 [见 trace step 2，github_client.py]。
+7. **依赖清单收敛（低）**：`requirements.txt` 是 `pip freeze` 全量快照，含 `httpx2`、`httpcore2`、`requests`、`tqdm` 等非直接依赖；建议改为直接依赖（`openai`、`httpx`、`python-dotenv`）并加 `requirements-dev.txt` [见 trace step 3，requirements.txt]。
+
+**一句话评价**：作为"可审计的多步工具调用 Agent"教学实现，它在安全边界与测试意识上完成度较高；把它推到可用状态，差的不是架构，而是 200 行截断的续读能力、CI 的测试覆盖和几处参数/文档的一致性收尾 [见 trace step 2、step 3]。

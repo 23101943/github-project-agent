@@ -1,10 +1,10 @@
 [
   {
     "step": 1,
-    "assistant_content": "我先获取仓库元数据和文件树。",
+    "assistant_content": "我会先同时获取仓库元数据和文件树，以了解项目整体情况。",
     "tool_calls": [
       {
-        "id": "call_00_qiJFMJaQSeZYsfByh9180059",
+        "id": "call_00_ET_VxWB0ryWqVKOgtnqGL0V3869",
         "function": {
           "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\"}",
           "name": "get_repo_info"
@@ -13,7 +13,7 @@
         "index": 0
       },
       {
-        "id": "call_01_3M9uH5J5XhBXbv3n208d4923",
+        "id": "call_01_ET_iDJyrkeTXSRiivihsApO6350",
         "function": {
           "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\"}",
           "name": "get_file_tree"
@@ -39,7 +39,7 @@
       "stars": 0,
       "forks": 0,
       "open_issues": 0,
-      "updated_at": "2026-11-07T13:38:15Z",
+      "updated_at": "2026-11-08T03:16:11Z",
       "html_url": "https://github.com/23101943/github-project-agent"
     }
   },
@@ -53,7 +53,7 @@
     "result": {
       "ok": true,
       "branch": "main",
-      "count": 15,
+      "count": 18,
       "truncated": false,
       "files": [
         ".env.example",
@@ -67,54 +67,57 @@
         "make_report.py",
         "requirements.txt",
         "run_log.txt",
+        "run_selection_demo.py",
         "run_tools_demo.py",
+        "test_agent_loop.py",
         "test_github_client.py",
         "test_github_tools.py",
+        "tool_selection_log.txt",
         "tools.py"
       ]
     }
   },
   {
     "step": 2,
-    "assistant_content": "仓库是 Python 项目，共 15 个文件。接下来读取核心文件。",
+    "assistant_content": "已获取概览信息。现在并行读取核心文件。",
     "tool_calls": [
       {
-        "id": "call_00_JdHq5c3nr7fWz5T7Cf191984",
+        "id": "call_00_H6TrDDAjInHBHwRyUZZK9226",
         "function": {
-          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"tools.py\"}",
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"agent.py\"}",
           "name": "get_file_content"
         },
         "type": "function",
         "index": 0
       },
       {
-        "id": "call_01_aGrKoIEH0UQeyKNyZWNL4472",
+        "id": "call_01_gm4YgwQ9dgYJjVpPwGPf1369",
         "function": {
-          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"agent.py\"}",
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"tools.py\"}",
           "name": "get_file_content"
         },
         "type": "function",
         "index": 1
+      },
+      {
+        "id": "call_02_C9CpVsah81tBnr0wztDR4148",
+        "function": {
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"github_client.py\"}",
+          "name": "get_file_content"
+        },
+        "type": "function",
+        "index": 2
+      },
+      {
+        "id": "call_03_siOMOTfRk3ej1rDWQeOK5192",
+        "function": {
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"README.md\"}",
+          "name": "get_file_content"
+        },
+        "type": "function",
+        "index": 3
       }
     ]
-  },
-  {
-    "step": 2,
-    "tool": "get_file_content",
-    "arguments": {
-      "owner": "23101943",
-      "repo": "github-project-agent",
-      "path": "tools.py"
-    },
-    "result": {
-      "ok": true,
-      "path": "tools.py",
-      "size": 7455,
-      "lines": 213,
-      "truncated": true,
-      "content": "\"\"\"工具层：Agent 可以调用的函数与对应的 JSON Schema。\"\"\"\n\nimport base64\nfrom datetime import datetime, timedelta, timezone as dt_timezone\nfrom zoneinfo import ZoneInfo, ZoneInfoNotFoundError\n\nfrom github_client import GitHubClient\n\n_FALLBACK_OFFSETS = {\n    \"Asia/Shanghai\": 8,\n    \"UTC\": 0,\n}\n\n\ndef get_current_time(timezone: str = \"Asia/Shanghai\") -> str:\n    \"\"\"返回指定 IANA 时区的当前时间，格式：YYYY-MM-DD HH:MM:SS 时区名。\"\"\"\n    try:\n        tz = ZoneInfo(timezone)\n    except ZoneInfoNotFoundError:\n        if timezone not in _FALLBACK_OFFSETS:\n            raise ValueError(f\"未知时区：{timezone}\")\n        tz = dt_timezone(timedelta(hours=_FALLBACK_OFFSETS[timezone]), timezone)\n    return datetime.now(tz).strftime(\"%Y-%m-%d %H:%M:%S %Z\")\n\n\n_client: GitHubClient | None = None\n\n\ndef _get_client() -> GitHubClient:\n    global _client\n    if _client is None:\n        _client = GitHubClient()\n    return _client\n\n\nMAX_FILE_BYTES = 100_000\nMAX_FILE_LINES = 200\nMAX_TREE_ENTRIES = 200\n\n\ndef get_repo_info(owner: str, repo: str) -> dict:\n    \"\"\"返回仓库元数据：描述、默认分支、语言、star、更新时间等。\"\"\"\n    result = _get_client().get(f\"/repos/{owner}/{repo}\")\n    if not result.get(\"ok\"):\n        return result\n    data = result[\"data\"]\n    return {\n        \"ok\": True,\n        \"full_name\": data.get(\"full_name\"),\n        \"description\": data.get(\"description\"),\n        \"default_branch\": data.get(\"default_branch\"),\n        \"language\": data.get(\"language\"),\n        \"stars\": data.get(\"stargazers_count\"),\n        \"forks\": data.get(\"forks_count\"),\n        \"open_issues\": data.get(\"open_issues_count\"),\n        \"updated_at\": data.get(\"updated_at\"),\n        \"html_url\": data.get(\"html_url\"),\n    }\n\n\ndef get_file_tree(owner: str, repo: str, branch: str = \"main\") -> dict:\n    \"\"\"返回分支的文件树（仅文件路径），条目过多时截断并标记 truncated。\"\"\"\n    result = _get_client().get(f\"/repos/{owner}/{repo}/git/trees/{branch}\", params={\"recursive\": \"1\"})\n    if not result.get(\"ok\"):\n        return result\n    data = result[\"data\"]\n    files = [node[\"path\"] for node in data.get(\"tree\", []) if node.get(\"type\") == \"blob\"]\n    truncated = bool(data.get(\"truncated\")) or len(files) > MAX_TREE_ENTRIES\n    return {\n        \"ok\": True,\n        \"branch\": branch,\n        \"count\": len(files),\n        \"truncated\": truncated,\n        \"files\": files[:MAX_TREE_ENTRIES],\n    }\n\n\ndef get_file_content(owner: str, repo: str, path: str, ref: str = \"main\",\n                     max_bytes: int = MAX_FILE_BYTES, max_lines: int = MAX_FILE_LINES) -> dict:\n    \"\"\"读取单个文件：base64 解码；超 200 行或超 100KB 时截断并标注；空文件/二进制友好返回。\"\"\"\n    result = _get_client().get(f\"/repos/{owner}/{repo}/contents/{path}\", params={\"ref\": ref})\n    if not result.get(\"ok\"):\n        return result\n    data = result[\"data\"]\n    size = data.get(\"size\", 0)\n    if size > max_bytes or data.get(\"encoding\") == \"none\":\n        return {\n            \"ok\": True,\n            \"path\": data.get(\"path\"),\n            \"size\": size,\n            \"truncated\": True,\n            \"message\": f\"文件 {size} 字节，超过上限 {max_bytes} 或非文本内容，仅返回元数据，请改用局部路径或缩小范围。\",\n        }\n\n    raw = base64.b64decode(data.get(\"content\", \"\") or \"\")\n    if b\"\\x00\" in raw:  # 二进制文件：解码后无意义的 NUL 字节，直接给元数据\n        return {\n            \"ok\": True,\n            \"path\": data.get(\"path\"),\n            \"size\": size,\n            \"truncated\": True,\n            \"binary\": True,\n            \"message\": f\"文件 {size} 字节，判定为二进制内容，不做文本解码。\",\n        }\n\n    content = raw.decode(\"utf-8\", errors=\"replace\")\n    if content == \"\":\n        return {\n            \"ok\": True,\n            \"path\": data.get(\"path\"),\n            \"size\": size,\n            \"lines\": 0,\n            \"truncated\": False,\n            \"content\": \"\",\n            \"message\": \"空文件。\",\n        }\n\n    lines = content.splitlines()\n    if len(lines) > max_lines:\n        return {\n            \"ok\": True,\n            \"path\": data.get(\"path\"),\n            \"size\": size,\n            \"lines\": len(lines),\n            \"truncated\": True,\n            \"content\": \"\\n\".join(lines[:max_lines]),\n            \"message\": f\"文件共 {len(lines)} 行，超过上限 {max_lines} 行，仅返回前 {max_lines} 行。\",\n        }\n\n    return {\n        \"ok\": True,\n        \"path\": data.get(\"path\"),\n        \"size\": size,\n        \"lines\": len(lines),\n        \"truncated\": False,\n        \"content\": content,\n    }\n\n\nTOOL_FUNCTIONS = {\n    \"get_current_time\": get_current_time,\n    \"get_repo_info\": get_repo_info,\n    \"get_file_tree\": get_file_tree,\n    \"get_file_content\": get_file_content,\n}\n\nTOOLS = [\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\": \"get_current_time\",\n            \"description\": \"获取指定 IANA 时区的当前日期与时间，用于需要实时时间的回答。\",\n            \"parameters\": {\n                \"type\": \"object\",\n                \"properties\": {\n                    \"timezone\": {\n                        \"type\": \"string\",\n                        \"description\": \"IANA 时区名，例如 Asia/Shanghai\",\n                    }\n                },\n                \"required\": [],\n            },\n        },\n    },\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\": \"get_repo_info\",\n            \"description\": \"获取 GitHub 仓库的元数据（描述、默认分支、语言、star 数、更新时间）。\",\n            \"parameters\": {\n                \"type\": \"object\",\n                \"properties\": {\n                    \"owner\": {\"type\": \"string\", \"description\": \"仓库所有者，例如 23101943\"},\n                    \"repo\": {\"type\": \"string\", \"description\": \"仓库名，例如 github-project-agent\"},\n                },\n                \"required\": [\"owner\", \"repo\"],\n            },\n        },\n    },\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\": \"get_file_tree\",\n            \"description\": \"列出仓库某个分支的全部文件路径，用于了解项目结构。\",\n            \"parameters\": {\n                \"type\": \"object\",\n                \"properties\": {\n                    \"owner\": {\"type\": \"string\", \"description\": \"仓库所有者\"},\n                    \"repo\": {\"type\": \"string\", \"description\": \"仓库名\"},\n                    \"branch\": {\"type\": \"string\", \"description\": \"分支名，默认 main\"},\n                },\n                \"required\": [\"owner\", \"repo\"],\n            },\n        },\n    },\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\": \"get_file_content\",\n            \"description\": \"读取仓库中单个文件的文本内容；超过大小上限时只返回元数据。\",",
-      "message": "文件共 213 行，超过上限 200 行，仅返回前 200 行。"
-    }
   },
   {
     "step": 2,
@@ -127,42 +130,121 @@
     "result": {
       "ok": true,
       "path": "agent.py",
-      "size": 3685,
-      "lines": 95,
+      "size": 4049,
+      "lines": 101,
       "truncated": false,
-      "content": "import argparse\nimport json\nimport os\n\nfrom dotenv import load_dotenv\nfrom openai import OpenAI\n\nfrom tools import TOOL_FUNCTIONS, TOOLS\n\n\ndef build_client() -> tuple[OpenAI, str]:\n    api_key = os.getenv(\"LLM_API_KEY\")\n    base_url = os.getenv(\"LLM_BASE_URL\", \"https://api.deepseek.com/v1\")\n    model = os.getenv(\"LLM_MODEL\", \"deepseek-flash\")\n    if not api_key:\n        raise RuntimeError(\"缺少 LLM_API_KEY，请在 .env 中配置后重试。\")\n    return OpenAI(api_key=api_key, base_url=base_url), model\n\n\nSYSTEM_PROMPT = (\n    \"你是一个 GitHub 项目分析 Agent，可以调用工具获取真实数据。\"\n    \"分析仓库时先用 get_repo_info 和 get_file_tree 了解整体，\"\n    \"再用 get_file_content 读取关键文件；结论必须注明证据文件名，不要臆测。\"\n)\n\n\ndef run_agent(question: str, trace: bool = False, max_steps: int = 6) -> tuple[str, list]:\n    client, model = build_client()\n    messages = [\n        {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n        {\"role\": \"user\", \"content\": question},\n    ]\n    trace_log = []\n\n    for step in range(1, max_steps + 1):\n        resp = client.chat.completions.create(model=model, messages=messages, tools=TOOLS)\n        msg = resp.choices[0].message\n        trace_log.append({\"step\": step, \"assistant_content\": msg.content, \"tool_calls\": msg.tool_calls and [tc.model_dump() for tc in msg.tool_calls]})\n\n        if not msg.tool_calls:\n            return msg.content or \"\", trace_log\n\n        messages.append(\n            {\n                \"role\": \"assistant\",\n                \"content\": msg.content,\n                \"tool_calls\": [tc.model_dump() for tc in msg.tool_calls],\n            }\n        )\n\n        for tc in msg.tool_calls:\n            name = tc.function.name\n            try:\n                args = json.loads(tc.function.arguments or \"{}\")\n            except json.JSONDecodeError:\n                args = {}\n            func = TOOL_FUNCTIONS.get(name)\n            if not func:\n                result = f\"未知工具：{name}\"\n            else:\n                try:\n                    result = func(**args)\n                except Exception as exc:  # 工具异常回喂给模型，让循环继续而不是整体崩溃\n                    result = f\"工具调用失败：{exc.__class__.__name__}: {exc}\"\n            trace_log.append({\"step\": step, \"tool\": name, \"arguments\": args, \"result\": result})\n            messages.append({\"role\": \"tool\", \"tool_call_id\": tc.id, \"content\": str(result)})\n\n    return f\"已达到最大步数 {max_steps}，为保证安全停止执行；请缩小问题范围或提高 --max-steps。\", trace_log\n\n\ndef main() -> None:\n    load_dotenv()\n    parser = argparse.ArgumentParser(description=\"GitHub 项目分析 Agent\")\n    parser.add_argument(\"--trace\", action=\"store_true\", help=\"输出并保存执行轨迹 agent_trace.json\")\n    parser.add_argument(\"--question\", default=\"\", help=\"要问的问题；不传则交互输入\")\n    parser.add_argument(\"--max-steps\", type=int, default=6, help=\"最大循环步数，超过后安全退出\")\n    args = parser.parse_args()\n\n    print(\"你好，我是 GitHub 项目分析 Agent，已经准备就绪。\")\n    question = args.question.strip() or input(\"你问点什么：\").strip()\n    if not question:\n        print(\"没有输入问题。\")\n        return\n\n    answer, trace_log = run_agent(question, trace=args.trace, max_steps=args.max_steps)\n    print(answer)\n\n    if args.trace:\n        with open(\"agent_trace.json\", \"w\", encoding=\"utf-8\") as f:\n            json.dump(trace_log, f, ensure_ascii=False, indent=2)\n        print(\"执行轨迹已写入 agent_trace.json\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+      "content": "import argparse\nimport json\nimport os\n\nfrom dotenv import load_dotenv\nfrom openai import OpenAI\n\nfrom tools import TOOL_MAP, TOOLS\n\n\ndef build_client() -> tuple[OpenAI, str]:\n    api_key = os.getenv(\"LLM_API_KEY\")\n    base_url = os.getenv(\"LLM_BASE_URL\", \"https://api.deepseek.com/v1\")\n    model = os.getenv(\"LLM_MODEL\", \"deepseek-flash\")\n    if not api_key:\n        raise RuntimeError(\"缺少 LLM_API_KEY，请在 .env 中配置后重试。\")\n    return OpenAI(api_key=api_key, base_url=base_url), model\n\n\nSYSTEM_PROMPT = (\n    \"你是一个 GitHub 项目分析 Agent，可以调用工具获取真实数据。\"\n    \"分析仓库时先用 get_repo_info 和 get_file_tree 了解整体，\"\n    \"再用 get_file_content 读取关键文件；结论必须注明证据文件名，不要臆测。\"\n    \"需要输出分析报告时，按「概况 / 结构 / 关键文件 / 结论与建议」组织，\"\n    \"并在每条关键结论后标注对应的工具调用步骤，例如 [见 trace step 2]。\"\n)\n\n\ndef run_agent(question: str, trace: bool = False, max_steps: int = 10) -> tuple[str, list]:\n    client, model = build_client()\n    messages = [\n        {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n        {\"role\": \"user\", \"content\": question},\n    ]\n    trace_log = []\n    step = 0\n\n    while step < max_steps:\n        step += 1\n        resp = client.chat.completions.create(model=model, messages=messages, tools=TOOLS)\n        msg = resp.choices[0].message\n        trace_log.append({\"step\": step, \"assistant_content\": msg.content, \"tool_calls\": msg.tool_calls and [tc.model_dump() for tc in msg.tool_calls]})\n\n        if not msg.tool_calls:\n            trace_log.append({\"step\": step, \"stop_reason\": \"final_answer\"})\n            return msg.content or \"\", trace_log\n\n        messages.append(\n            {\n                \"role\": \"assistant\",\n                \"content\": msg.content,\n                \"tool_calls\": [tc.model_dump() for tc in msg.tool_calls],\n            }\n        )\n\n        for tc in msg.tool_calls:\n            name = tc.function.name\n            try:\n                args = json.loads(tc.function.arguments or \"{}\")\n            except json.JSONDecodeError:\n                args = {}\n            func = TOOL_MAP.get(name)\n            if not func:\n                result = f\"未知工具：{name}\"\n            else:\n                try:\n                    result = func(**args)\n                except Exception as exc:  # 工具异常回喂给模型，让循环继续而不是整体崩溃\n                    result = f\"工具调用失败：{exc.__class__.__name__}: {exc}\"\n            trace_log.append({\"step\": step, \"tool\": name, \"arguments\": args, \"result\": result})\n            messages.append({\"role\": \"tool\", \"tool_call_id\": tc.id, \"content\": f\"[step {step}] {result}\"})\n\n    trace_log.append({\"step\": step, \"stop_reason\": \"max_steps\"})\n    return f\"已达到最大步数 {max_steps}，为保证安全停止执行；请缩小问题范围或提高 --max-steps。\", trace_log\n\n\ndef main() -> None:\n    load_dotenv()\n    parser = argparse.ArgumentParser(description=\"GitHub 项目分析 Agent\")\n    parser.add_argument(\"--trace\", action=\"store_true\", help=\"输出并保存执行轨迹 agent_trace.json\")\n    parser.add_argument(\"--question\", default=\"\", help=\"要问的问题；不传则交互输入\")\n    parser.add_argument(\"--max-steps\", type=int, default=10, help=\"最大循环步数，超过后安全退出\")\n    args = parser.parse_args()\n\n    print(\"你好，我是 GitHub 项目分析 Agent，已经准备就绪。\")\n    question = args.question.strip() or input(\"你问点什么：\").strip()\n    if not question:\n        print(\"没有输入问题。\")\n        return\n\n    answer, trace_log = run_agent(question, trace=args.trace, max_steps=args.max_steps)\n    print(answer)\n\n    if args.trace:\n        with open(\"agent_trace.json\", \"w\", encoding=\"utf-8\") as f:\n            json.dump(trace_log, f, ensure_ascii=False, indent=2)\n        print(\"执行轨迹已写入 agent_trace.json\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+    }
+  },
+  {
+    "step": 2,
+    "tool": "get_file_content",
+    "arguments": {
+      "owner": "23101943",
+      "repo": "github-project-agent",
+      "path": "tools.py"
+    },
+    "result": {
+      "ok": true,
+      "path": "tools.py",
+      "size": 7449,
+      "lines": 213,
+      "truncated": true,
+      "content": "\"\"\"工具层：Agent 可以调用的函数与对应的 JSON Schema。\"\"\"\n\nimport base64\nfrom datetime import datetime, timedelta, timezone as dt_timezone\nfrom zoneinfo import ZoneInfo, ZoneInfoNotFoundError\n\nfrom github_client import GitHubClient\n\n_FALLBACK_OFFSETS = {\n    \"Asia/Shanghai\": 8,\n    \"UTC\": 0,\n}\n\n\ndef get_current_time(timezone: str = \"Asia/Shanghai\") -> str:\n    \"\"\"返回指定 IANA 时区的当前时间，格式：YYYY-MM-DD HH:MM:SS 时区名。\"\"\"\n    try:\n        tz = ZoneInfo(timezone)\n    except ZoneInfoNotFoundError:\n        if timezone not in _FALLBACK_OFFSETS:\n            raise ValueError(f\"未知时区：{timezone}\")\n        tz = dt_timezone(timedelta(hours=_FALLBACK_OFFSETS[timezone]), timezone)\n    return datetime.now(tz).strftime(\"%Y-%m-%d %H:%M:%S %Z\")\n\n\n_client: GitHubClient | None = None\n\n\ndef _get_client() -> GitHubClient:\n    global _client\n    if _client is None:\n        _client = GitHubClient()\n    return _client\n\n\nMAX_FILE_BYTES = 100_000\nMAX_FILE_LINES = 200\nMAX_TREE_ENTRIES = 200\n\n\ndef get_repo_info(owner: str, repo: str) -> dict:\n    \"\"\"返回仓库元数据：描述、默认分支、语言、star、更新时间等。\"\"\"\n    result = _get_client().get(f\"/repos/{owner}/{repo}\")\n    if not result.get(\"ok\"):\n        return result\n    data = result[\"data\"]\n    return {\n        \"ok\": True,\n        \"full_name\": data.get(\"full_name\"),\n        \"description\": data.get(\"description\"),\n        \"default_branch\": data.get(\"default_branch\"),\n        \"language\": data.get(\"language\"),\n        \"stars\": data.get(\"stargazers_count\"),\n        \"forks\": data.get(\"forks_count\"),\n        \"open_issues\": data.get(\"open_issues_count\"),\n        \"updated_at\": data.get(\"updated_at\"),\n        \"html_url\": data.get(\"html_url\"),\n    }\n\n\ndef get_file_tree(owner: str, repo: str, branch: str = \"main\") -> dict:\n    \"\"\"返回分支的文件树（仅文件路径），条目过多时截断并标记 truncated。\"\"\"\n    result = _get_client().get(f\"/repos/{owner}/{repo}/git/trees/{branch}\", params={\"recursive\": \"1\"})\n    if not result.get(\"ok\"):\n        return result\n    data = result[\"data\"]\n    files = [node[\"path\"] for node in data.get(\"tree\", []) if node.get(\"type\") == \"blob\"]\n    truncated = bool(data.get(\"truncated\")) or len(files) > MAX_TREE_ENTRIES\n    return {\n        \"ok\": True,\n        \"branch\": branch,\n        \"count\": len(files),\n        \"truncated\": truncated,\n        \"files\": files[:MAX_TREE_ENTRIES],\n    }\n\n\ndef get_file_content(owner: str, repo: str, path: str, ref: str = \"main\",\n                     max_bytes: int = MAX_FILE_BYTES, max_lines: int = MAX_FILE_LINES) -> dict:\n    \"\"\"读取单个文件：base64 解码；超 200 行或超 100KB 时截断并标注；空文件/二进制友好返回。\"\"\"\n    result = _get_client().get(f\"/repos/{owner}/{repo}/contents/{path}\", params={\"ref\": ref})\n    if not result.get(\"ok\"):\n        return result\n    data = result[\"data\"]\n    size = data.get(\"size\", 0)\n    if size > max_bytes or data.get(\"encoding\") == \"none\":\n        return {\n            \"ok\": True,\n            \"path\": data.get(\"path\"),\n            \"size\": size,\n            \"truncated\": True,\n            \"message\": f\"文件 {size} 字节，超过上限 {max_bytes} 或非文本内容，仅返回元数据，请改用局部路径或缩小范围。\",\n        }\n\n    raw = base64.b64decode(data.get(\"content\", \"\") or \"\")\n    if b\"\\x00\" in raw:  # 二进制文件：解码后无意义的 NUL 字节，直接给元数据\n        return {\n            \"ok\": True,\n            \"path\": data.get(\"path\"),\n            \"size\": size,\n            \"truncated\": True,\n            \"binary\": True,\n            \"message\": f\"文件 {size} 字节，判定为二进制内容，不做文本解码。\",\n        }\n\n    content = raw.decode(\"utf-8\", errors=\"replace\")\n    if content == \"\":\n        return {\n            \"ok\": True,\n            \"path\": data.get(\"path\"),\n            \"size\": size,\n            \"lines\": 0,\n            \"truncated\": False,\n            \"content\": \"\",\n            \"message\": \"空文件。\",\n        }\n\n    lines = content.splitlines()\n    if len(lines) > max_lines:\n        return {\n            \"ok\": True,\n            \"path\": data.get(\"path\"),\n            \"size\": size,\n            \"lines\": len(lines),\n            \"truncated\": True,\n            \"content\": \"\\n\".join(lines[:max_lines]),\n            \"message\": f\"文件共 {len(lines)} 行，超过上限 {max_lines} 行，仅返回前 {max_lines} 行。\",\n        }\n\n    return {\n        \"ok\": True,\n        \"path\": data.get(\"path\"),\n        \"size\": size,\n        \"lines\": len(lines),\n        \"truncated\": False,\n        \"content\": content,\n    }\n\n\nTOOL_MAP = {\n    \"get_current_time\": get_current_time,\n    \"get_repo_info\": get_repo_info,\n    \"get_file_tree\": get_file_tree,\n    \"get_file_content\": get_file_content,\n}\n\nTOOLS = [\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\": \"get_current_time\",\n            \"description\": \"获取指定 IANA 时区的当前日期与时间，用于需要实时时间的回答。\",\n            \"parameters\": {\n                \"type\": \"object\",\n                \"properties\": {\n                    \"timezone\": {\n                        \"type\": \"string\",\n                        \"description\": \"IANA 时区名，例如 Asia/Shanghai\",\n                    }\n                },\n                \"required\": [],\n            },\n        },\n    },\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\": \"get_repo_info\",\n            \"description\": \"获取 GitHub 仓库的元数据（描述、默认分支、语言、star 数、更新时间）。\",\n            \"parameters\": {\n                \"type\": \"object\",\n                \"properties\": {\n                    \"owner\": {\"type\": \"string\", \"description\": \"仓库所有者，例如 23101943\"},\n                    \"repo\": {\"type\": \"string\", \"description\": \"仓库名，例如 github-project-agent\"},\n                },\n                \"required\": [\"owner\", \"repo\"],\n            },\n        },\n    },\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\": \"get_file_tree\",\n            \"description\": \"列出仓库某个分支的全部文件路径，用于了解项目结构。\",\n            \"parameters\": {\n                \"type\": \"object\",\n                \"properties\": {\n                    \"owner\": {\"type\": \"string\", \"description\": \"仓库所有者\"},\n                    \"repo\": {\"type\": \"string\", \"description\": \"仓库名\"},\n                    \"branch\": {\"type\": \"string\", \"description\": \"分支名，默认 main\"},\n                },\n                \"required\": [\"owner\", \"repo\"],\n            },\n        },\n    },\n    {\n        \"type\": \"function\",\n        \"function\": {\n            \"name\": \"get_file_content\",\n            \"description\": \"读取仓库中单个文件的文本内容；超过大小上限时只返回元数据。\",",
+      "message": "文件共 213 行，超过上限 200 行，仅返回前 200 行。"
+    }
+  },
+  {
+    "step": 2,
+    "tool": "get_file_content",
+    "arguments": {
+      "owner": "23101943",
+      "repo": "github-project-agent",
+      "path": "github_client.py"
+    },
+    "result": {
+      "ok": true,
+      "path": "github_client.py",
+      "size": 3951,
+      "lines": 108,
+      "truncated": false,
+      "content": "\"\"\"GitHub API 客户端：自动带 Token、区分错误类型、限流退避一次。\"\"\"\n\nimport os\nimport time\n\nimport httpx\n\nGITHUB_API = \"https://api.github.com\"\n\n\nclass GitHubClient:\n    \"\"\"封装 GitHub REST API 调用，错误以结构化 dict 返回，不静默吞掉。\"\"\"\n\n    def __init__(self, token: str | None = None, base_url: str = GITHUB_API):\n        self.token = token or os.getenv(\"GITHUB_TOKEN\", \"\")\n        self.base_url = base_url\n        self.headers = {\n            \"Accept\": \"application/vnd.github+json\",\n            \"User-Agent\": \"github-project-agent\",\n        }\n        if self.token:\n            self.headers[\"Authorization\"] = f\"Bearer {self.token}\"\n        self.client = httpx.Client(base_url=self.base_url, headers=self.headers, timeout=20)\n        self.last_rate = {}\n\n    def _record_rate(self, resp: httpx.Response) -> None:\n        self.last_rate = {\n            \"limit\": resp.headers.get(\"X-RateLimit-Limit\"),\n            \"remaining\": resp.headers.get(\"X-RateLimit-Remaining\"),\n            \"reset\": resp.headers.get(\"X-RateLimit-Reset\"),\n        }\n\n    def get(self, path: str, params: dict | None = None, _retried: bool = False) -> dict:\n        if not self.token:\n            return {\n                \"ok\": False,\n                \"status\": 401,\n                \"error_type\": \"missing_token\",\n                \"message\": \"未配置 GITHUB_TOKEN，请在 .env 中设置后重试。\",\n            }\n\n        try:\n            resp = self.client.get(path, params=params)\n        except httpx.HTTPError as exc:\n            return {\n                \"ok\": False,\n                \"status\": 0,\n                \"error_type\": \"network\",\n                \"message\": f\"网络请求失败：{exc.__class__.__name__}，请检查网络后重试。\",\n            }\n        self._record_rate(resp)\n\n        if resp.status_code == 401:\n            return {\n                \"ok\": False,\n                \"status\": 401,\n                \"error_type\": \"auth\",\n                \"message\": \"Token 无效或已过期，请重新生成。\",\n            }\n\n        if resp.status_code == 404:\n            return {\n                \"ok\": False,\n                \"status\": 404,\n                \"error_type\": \"not_found\",\n                \"message\": \"资源不存在或当前 Token 无权访问。\",\n            }\n\n        if resp.status_code == 403 or resp.status_code == 429:\n            retry_after = resp.headers.get(\"Retry-After\")\n            remaining = resp.headers.get(\"X-RateLimit-Remaining\")\n            is_rate_limited = resp.status_code == 429 or remaining == \"0\" or retry_after is not None\n            if is_rate_limited and not _retried:\n                wait = int(retry_after) if retry_after and retry_after.isdigit() else 60\n                time.sleep(wait)\n                return self.get(path, params=params, _retried=True)\n            return {\n                \"ok\": False,\n                \"status\": resp.status_code,\n                \"error_type\": \"rate_limit\" if is_rate_limited else \"forbidden\",\n                \"message\": \"触发 GitHub 限流，已退避重试一次仍失败。\" if is_rate_limited else \"当前 Token 权限不足。\",\n                \"retry_after\": retry_after,\n            }\n\n        if resp.status_code >= 400:\n            return {\n                \"ok\": False,\n                \"status\": resp.status_code,\n                \"error_type\": \"http_error\",\n                \"message\": f\"GitHub 返回错误：{resp.status_code}\",\n            }\n\n        try:\n            data = resp.json()\n        except ValueError:\n            return {\n                \"ok\": False,\n                \"status\": resp.status_code,\n                \"error_type\": \"bad_response\",\n                \"message\": \"GitHub 返回了非 JSON 内容，可能是网关错误页。\",\n            }\n\n        return {\n            \"ok\": True,\n            \"status\": resp.status_code,\n            \"data\": data,\n            \"rate\": self.last_rate,\n        }\n"
+    }
+  },
+  {
+    "step": 2,
+    "tool": "get_file_content",
+    "arguments": {
+      "owner": "23101943",
+      "repo": "github-project-agent",
+      "path": "README.md"
+    },
+    "result": {
+      "ok": true,
+      "path": "README.md",
+      "size": 2406,
+      "lines": 68,
+      "truncated": false,
+      "content": "# github-project-agent\n\n一个可调用 GitHub 工具做真实仓库分析的多步 Agent（DeepSeek 模型 + GitHub REST API）。\n\n## 本地运行说明\n\n环境要求：Python 3.10+（用到 `zoneinfo` 与 `X | None` 类型注解）。\n\n```powershell\n# 1) 创建并激活虚拟环境\npython -m venv venv\n.\\venv\\Scripts\\Activate.ps1\n\n# 2) 安装依赖\npip install -r requirements.txt\n\n# 3) 配置环境变量（.env 已被 .gitignore 忽略，不要提交）\nCopy-Item .env.example .env\n```\n\n`.env` 需要四项：\n\n```\nLLM_API_KEY=你的 DeepSeek Key\nLLM_BASE_URL=https://api.deepseek.com/v1\nLLM_MODEL=deepseek-flash\nGITHUB_TOKEN=你的 GitHub PAT（只需 public_repo 读权限）\n```\n\n## 运行方式\n\n```powershell\n# 单测（全部 mock，不真调 GitHub）：5 个用例\n.\\venv\\Scripts\\python.exe -m unittest -v test_github_tools test_github_client\n\n# 真实请求演示：仓库信息 / 文件树 / 文件内容\n.\\venv\\Scripts\\python.exe run_tools_demo.py\n\n# 交互式分析\n.\\venv\\Scripts\\python.exe agent.py\n\n# 一次性提问 + 保存执行轨迹 + 限制步数\n.\\venv\\Scripts\\python.exe agent.py --question \"分析这个仓库的架构与主要风险\" --trace --max-steps 6\n```\n\n真实演示的期望输出（本机实测）：仓库信息 `language=Python, default_branch=main, stars=0`；\n文件树 `count=15, truncated=false`；读取 `github_client.py` 返回 `size=3951, truncated=false`。\n\n完整的本机运行记录（命令 + 输出）见仓库根目录 `run_log.txt`。\n\n## 目录结构\n\n```\nagent.py            CLI 入口与多步工具调用循环（--question/--trace/--max-steps）\ntools.py            工具层：get_current_time / get_repo_info / get_file_tree / get_file_content + JSON Schema\ngithub_client.py    HTTP 层：Token 鉴权、401/404/403+限流分类、Retry-After 退避一次\ntest_github_client.py / test_github_tools.py   14 个单测\nrun_tools_demo.py   真实请求演示脚本\nrun_selection_demo.py  三类提问验证模型工具选择（生成 tool_selection_log.txt）\nmake_report.py      生成带证据分析报告 REPORT.md\n```\n\n## 安全边界\n\n- Token 只从环境变量读取，源码与提交记录中不含明文凭据。\n- 工具派发走白名单 `TOOL_MAP`，模型无法调用任意函数。\n- 文件内容上限 100KB、文件树上限 200 项，超出只返回元数据/截断标记。\n- `--max-steps` 到点即停，避免无限循环。\n"
     }
   },
   {
     "step": 3,
-    "assistant_content": "tools.py 因超过 200 行被截断（共 213 行，缺的是 `get_file_content` schema 尾部与列表收尾），我读一下两个测试文件和 CI 配置补齐验证。",
+    "assistant_content": "核心三文件已读完。再读取测试、CI 配置与依赖清单，用于评估工程质量。",
     "tool_calls": [
       {
-        "id": "call_00_g0qJ2LR54Sqiyh4eyNZD5418",
+        "id": "call_00_aDlTqG2FizMHtJW3hTeV9392",
         "function": {
-          "arguments": "{\"owner\": \"23101943\", \"path\": \"test_github_tools.py\", \"repo\": \"github-project-agent\"}",
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"test_github_client.py\"}",
           "name": "get_file_content"
         },
         "type": "function",
         "index": 0
       },
       {
-        "id": "call_01_wwmntNTedX36PMznCT401640",
+        "id": "call_01_i9pLa9NBpCNVDZQIGCbi5656",
         "function": {
-          "arguments": "{\"owner\": \"23101943\", \"path\": \"test_github_client.py\", \"repo\": \"github-project-agent\"}",
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"test_github_tools.py\"}",
           "name": "get_file_content"
         },
         "type": "function",
         "index": 1
       },
       {
-        "id": "call_02_ocM1EySOmJpPfFdNtPK53238",
+        "id": "call_02_Ry48FqqAntnearJjWMeK2206",
         "function": {
-          "arguments": "{\"owner\": \"23101943\", \"path\": \".github/workflows/tests.yml\", \"repo\": \"github-project-agent\"}",
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"test_agent_loop.py\"}",
           "name": "get_file_content"
         },
         "type": "function",
         "index": 2
+      },
+      {
+        "id": "call_03_guFifI2w4JYL854UA7cM9024",
+        "function": {
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \".github/workflows/tests.yml\"}",
+          "name": "get_file_content"
+        },
+        "type": "function",
+        "index": 3
+      },
+      {
+        "id": "call_04_g4zYNIgUuRzi44rcEuEN8466",
+        "function": {
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"requirements.txt\"}",
+          "name": "get_file_content"
+        },
+        "type": "function",
+        "index": 4
+      },
+      {
+        "id": "call_05_HFBreCDLJXCC0GG18FD89884",
+        "function": {
+          "arguments": "{\"owner\": 23101943, \"repo\": \"github-project-agent\", \"path\": \".env.example\"}",
+          "name": "get_file_content"
+        },
+        "type": "function",
+        "index": 5
       }
     ]
   },
@@ -171,25 +253,8 @@
     "tool": "get_file_content",
     "arguments": {
       "owner": "23101943",
-      "path": "test_github_tools.py",
-      "repo": "github-project-agent"
-    },
-    "result": {
-      "ok": true,
-      "path": "test_github_tools.py",
-      "size": 5638,
-      "lines": 160,
-      "truncated": false,
-      "content": "\"\"\"GitHub 工具层单测：用假客户端返回构造好的响应，不真调 API。\"\"\"\n\nimport base64\nimport unittest\n\nimport tools\n\n\nclass FakeClient:\n    def __init__(self, payloads):\n        self.payloads = payloads\n        self.calls = []\n\n    def get(self, path, params=None):\n        self.calls.append((path, params))\n        return self.payloads[path]\n\n\ndef use_fake(payloads):\n    fake = FakeClient(payloads)\n    tools._client = fake\n    return fake\n\n\nclass RepoInfoTest(unittest.TestCase):\n    def test_extracts_fields(self):\n        use_fake({\n            \"/repos/o/r\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\n                    \"full_name\": \"o/r\", \"description\": \"demo\", \"default_branch\": \"main\",\n                    \"language\": \"Python\", \"stargazers_count\": 3, \"forks_count\": 1,\n                    \"open_issues_count\": 0, \"updated_at\": \"2026-11-07T10:00:00Z\",\n                    \"html_url\": \"https://github.com/o/r\",\n                },\n            }\n        })\n        info = tools.get_repo_info(\"o\", \"r\")\n        self.assertTrue(info[\"ok\"])\n        self.assertEqual(info[\"default_branch\"], \"main\")\n        self.assertEqual(info[\"stars\"], 3)\n\n\nclass FileTreeTest(unittest.TestCase):\n    def test_keeps_only_blobs_and_truncates_overlong_list(self):\n        # 超长列表：250 个文件（> 200 上限），另有 1 个目录节点应被过滤\n        tree = [{\"path\": f\"f{i}.py\", \"type\": \"blob\"} for i in range(250)]\n        tree.append({\"path\": \"src\", \"type\": \"tree\"})\n        use_fake({\n            \"/repos/o/r/git/trees/main\": {\"ok\": True, \"status\": 200, \"data\": {\"tree\": tree}}\n        })\n        result = tools.get_file_tree(\"o\", \"r\")\n        self.assertEqual(result[\"count\"], 250)\n        self.assertTrue(result[\"truncated\"])\n        self.assertEqual(len(result[\"files\"]), 200)\n        self.assertEqual(result[\"files\"][-1], \"f199.py\")\n        self.assertNotIn(\"src\", result[\"files\"])\n\n\nclass FileContentTest(unittest.TestCase):\n    def test_decodes_small_file(self):\n        raw = \"print('hi')\\n\"\n        use_fake({\n            \"/repos/o/r/contents/a.py\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\n                    \"path\": \"a.py\",\n                    \"size\": len(raw),\n                    \"encoding\": \"base64\",\n                    \"content\": base64.b64encode(raw.encode()).decode(),\n                },\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"a.py\")\n        self.assertFalse(result[\"truncated\"])\n        self.assertEqual(result[\"content\"], raw)\n        self.assertEqual(result[\"lines\"], 1)\n\n    def test_empty_file_is_friendly(self):\n        use_fake({\n            \"/repos/o/r/contents/empty.txt\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\"path\": \"empty.txt\", \"size\": 0, \"encoding\": \"base64\", \"content\": \"\"},\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"empty.txt\")\n        self.assertTrue(result[\"ok\"])\n        self.assertEqual(result[\"content\"], \"\")\n        self.assertEqual(result[\"lines\"], 0)\n        self.assertFalse(result[\"truncated\"])\n        self.assertEqual(result[\"message\"], \"空文件。\")\n\n    def test_binary_content_returns_metadata_only(self):\n        raw = b\"\\x00\\x01\\x02binary\"\n        use_fake({\n            \"/repos/o/r/contents/logo.bin\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\n                    \"path\": \"logo.bin\",\n                    \"size\": len(raw),\n                    \"encoding\": \"base64\",\n                    \"content\": base64.b64encode(raw).decode(),\n                },\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"logo.bin\")\n        self.assertTrue(result[\"binary\"])\n        self.assertNotIn(\"content\", result)\n        self.assertIn(\"二进制\", result[\"message\"])\n\n    def test_truncates_at_200_lines(self):\n        raw = \"\".join(f\"line{i}\\n\" for i in range(1, 251))\n        use_fake({\n            \"/repos/o/r/contents/long.py\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\n                    \"path\": \"long.py\",\n                    \"size\": len(raw),\n                    \"encoding\": \"base64\",\n                    \"content\": base64.b64encode(raw.encode()).decode(),\n                },\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"long.py\")\n        self.assertTrue(result[\"truncated\"])\n        self.assertEqual(result[\"lines\"], 250)\n        self.assertEqual(len(result[\"content\"].splitlines()), 200)\n        self.assertEqual(result[\"content\"].splitlines()[-1], \"line200\")\n        self.assertIn(\"仅返回前 200 行\", result[\"message\"])\n\n    def test_oversize_returns_metadata_only(self):\n        use_fake({\n            \"/repos/o/r/contents/big.py\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\"path\": \"big.py\", \"size\": 500_000, \"encoding\": \"none\", \"content\": \"\"},\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"big.py\")\n        self.assertTrue(result[\"truncated\"])\n        self.assertNotIn(\"content\", result)\n\n    def test_propagates_error(self):\n        use_fake({\n            \"/repos/o/r/contents/missing.py\": {\n                \"ok\": False, \"status\": 404, \"error_type\": \"not_found\", \"message\": \"资源不存在\",\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"missing.py\")\n        self.assertFalse(result[\"ok\"])\n        self.assertEqual(result[\"error_type\"], \"not_found\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
-    }
-  },
-  {
-    "step": 3,
-    "tool": "get_file_content",
-    "arguments": {
-      "owner": "23101943",
-      "path": "test_github_client.py",
-      "repo": "github-project-agent"
+      "repo": "github-project-agent",
+      "path": "test_github_client.py"
     },
     "result": {
       "ok": true,
@@ -205,8 +270,42 @@
     "tool": "get_file_content",
     "arguments": {
       "owner": "23101943",
-      "path": ".github/workflows/tests.yml",
-      "repo": "github-project-agent"
+      "repo": "github-project-agent",
+      "path": "test_github_tools.py"
+    },
+    "result": {
+      "ok": true,
+      "path": "test_github_tools.py",
+      "size": 7157,
+      "lines": 191,
+      "truncated": false,
+      "content": "\"\"\"GitHub 工具层单测：用假客户端返回构造好的响应，不真调 API。\"\"\"\n\nimport base64\nimport unittest\n\nimport tools\n\n\nclass FakeClient:\n    def __init__(self, payloads):\n        self.payloads = payloads\n        self.calls = []\n\n    def get(self, path, params=None):\n        self.calls.append((path, params))\n        return self.payloads[path]\n\n\ndef use_fake(payloads):\n    fake = FakeClient(payloads)\n    tools._client = fake\n    return fake\n\n\nclass RepoInfoTest(unittest.TestCase):\n    def test_extracts_fields(self):\n        use_fake({\n            \"/repos/o/r\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\n                    \"full_name\": \"o/r\", \"description\": \"demo\", \"default_branch\": \"main\",\n                    \"language\": \"Python\", \"stargazers_count\": 3, \"forks_count\": 1,\n                    \"open_issues_count\": 0, \"updated_at\": \"2026-11-07T10:00:00Z\",\n                    \"html_url\": \"https://github.com/o/r\",\n                },\n            }\n        })\n        info = tools.get_repo_info(\"o\", \"r\")\n        self.assertTrue(info[\"ok\"])\n        self.assertEqual(info[\"default_branch\"], \"main\")\n        self.assertEqual(info[\"stars\"], 3)\n\n\nclass FileTreeTest(unittest.TestCase):\n    def test_keeps_only_blobs_and_truncates_overlong_list(self):\n        # 超长列表：250 个文件（> 200 上限），另有 1 个目录节点应被过滤\n        tree = [{\"path\": f\"f{i}.py\", \"type\": \"blob\"} for i in range(250)]\n        tree.append({\"path\": \"src\", \"type\": \"tree\"})\n        use_fake({\n            \"/repos/o/r/git/trees/main\": {\"ok\": True, \"status\": 200, \"data\": {\"tree\": tree}}\n        })\n        result = tools.get_file_tree(\"o\", \"r\")\n        self.assertEqual(result[\"count\"], 250)\n        self.assertTrue(result[\"truncated\"])\n        self.assertEqual(len(result[\"files\"]), 200)\n        self.assertEqual(result[\"files\"][-1], \"f199.py\")\n        self.assertNotIn(\"src\", result[\"files\"])\n\n\nclass FileContentTest(unittest.TestCase):\n    def test_decodes_small_file(self):\n        raw = \"print('hi')\\n\"\n        use_fake({\n            \"/repos/o/r/contents/a.py\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\n                    \"path\": \"a.py\",\n                    \"size\": len(raw),\n                    \"encoding\": \"base64\",\n                    \"content\": base64.b64encode(raw.encode()).decode(),\n                },\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"a.py\")\n        self.assertFalse(result[\"truncated\"])\n        self.assertEqual(result[\"content\"], raw)\n        self.assertEqual(result[\"lines\"], 1)\n\n    def test_empty_file_is_friendly(self):\n        use_fake({\n            \"/repos/o/r/contents/empty.txt\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\"path\": \"empty.txt\", \"size\": 0, \"encoding\": \"base64\", \"content\": \"\"},\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"empty.txt\")\n        self.assertTrue(result[\"ok\"])\n        self.assertEqual(result[\"content\"], \"\")\n        self.assertEqual(result[\"lines\"], 0)\n        self.assertFalse(result[\"truncated\"])\n        self.assertEqual(result[\"message\"], \"空文件。\")\n\n    def test_binary_content_returns_metadata_only(self):\n        raw = b\"\\x00\\x01\\x02binary\"\n        use_fake({\n            \"/repos/o/r/contents/logo.bin\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\n                    \"path\": \"logo.bin\",\n                    \"size\": len(raw),\n                    \"encoding\": \"base64\",\n                    \"content\": base64.b64encode(raw).decode(),\n                },\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"logo.bin\")\n        self.assertTrue(result[\"binary\"])\n        self.assertNotIn(\"content\", result)\n        self.assertIn(\"二进制\", result[\"message\"])\n\n    def test_truncates_at_200_lines(self):\n        raw = \"\".join(f\"line{i}\\n\" for i in range(1, 251))\n        use_fake({\n            \"/repos/o/r/contents/long.py\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\n                    \"path\": \"long.py\",\n                    \"size\": len(raw),\n                    \"encoding\": \"base64\",\n                    \"content\": base64.b64encode(raw.encode()).decode(),\n                },\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"long.py\")\n        self.assertTrue(result[\"truncated\"])\n        self.assertEqual(result[\"lines\"], 250)\n        self.assertEqual(len(result[\"content\"].splitlines()), 200)\n        self.assertEqual(result[\"content\"].splitlines()[-1], \"line200\")\n        self.assertIn(\"仅返回前 200 行\", result[\"message\"])\n\n    def test_oversize_returns_metadata_only(self):\n        use_fake({\n            \"/repos/o/r/contents/big.py\": {\n                \"ok\": True,\n                \"status\": 200,\n                \"data\": {\"path\": \"big.py\", \"size\": 500_000, \"encoding\": \"none\", \"content\": \"\"},\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"big.py\")\n        self.assertTrue(result[\"truncated\"])\n        self.assertNotIn(\"content\", result)\n\n    def test_propagates_error(self):\n        use_fake({\n            \"/repos/o/r/contents/missing.py\": {\n                \"ok\": False, \"status\": 404, \"error_type\": \"not_found\", \"message\": \"资源不存在\",\n            }\n        })\n        result = tools.get_file_content(\"o\", \"r\", \"missing.py\")\n        self.assertFalse(result[\"ok\"])\n        self.assertEqual(result[\"error_type\"], \"not_found\")\n\n\nclass ToolRegistryTest(unittest.TestCase):\n    \"\"\"注册表与 Schema 一致：函数集合、必填参数、参数说明都要对得上。\"\"\"\n\n    def test_functions_and_schema_names_match(self):\n        schema_names = {spec[\"function\"][\"name\"] for spec in tools.TOOLS}\n        self.assertEqual(schema_names, set(tools.TOOL_MAP))\n\n    def test_schema_required_and_descriptions(self):\n        for spec in tools.TOOLS:\n            fn = spec[\"function\"]\n            self.assertEqual(spec[\"type\"], \"function\")\n            self.assertTrue(fn[\"description\"], f\"{fn['name']} 缺少 description\")\n            params = fn[\"parameters\"]\n            self.assertEqual(params[\"type\"], \"object\")\n            props = params[\"properties\"]\n            for key in params.get(\"required\", []):\n                self.assertIn(key, props, f\"{fn['name']} 必填参数 {key} 不在 properties 中\")\n            for key, meta in props.items():\n                self.assertIn(\"description\", meta, f\"{fn['name']}.{key} 缺少参数说明\")\n                self.assertIn(\"type\", meta, f\"{fn['name']}.{key} 缺少参数类型\")\n\n    def test_schema_params_exist_in_function_signature(self):\n        import inspect\n        for spec in tools.TOOLS:\n            fn = spec[\"function\"]\n            func = tools.TOOL_MAP[fn[\"name\"]]\n            allowed = set(inspect.signature(func).parameters)\n            for key in fn[\"parameters\"][\"properties\"]:\n                self.assertIn(key, allowed, f\"{fn['name']} Schema 中的 {key} 不在函数签名里\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+    }
+  },
+  {
+    "step": 3,
+    "tool": "get_file_content",
+    "arguments": {
+      "owner": "23101943",
+      "repo": "github-project-agent",
+      "path": "test_agent_loop.py"
+    },
+    "result": {
+      "ok": true,
+      "path": "test_agent_loop.py",
+      "size": 4146,
+      "lines": 105,
+      "truncated": false,
+      "content": "\"\"\"任务08：多步 Loop 上限、安全退出与异常回喂的单测（全部 mock，不需要真实模型）。\"\"\"\n\nimport inspect\nimport json\nimport unittest\nfrom types import SimpleNamespace\nfrom unittest.mock import patch\n\nimport agent\n\n\ndef _tool_call(name=\"get_current_time\", arguments=None, call_id=\"call_1\"):\n    raw_args = json.dumps(arguments or {})\n    payload = {\n        \"id\": call_id,\n        \"type\": \"function\",\n        \"function\": {\"name\": name, \"arguments\": raw_args},\n        \"index\": 0,\n    }\n    return SimpleNamespace(\n        id=call_id,\n        function=SimpleNamespace(name=name, arguments=raw_args),\n        model_dump=lambda: payload,\n    )\n\n\ndef _message(content=None, tool_calls=None):\n    return SimpleNamespace(content=content, tool_calls=tool_calls)\n\n\nclass FakeCompletions:\n    \"\"\"按顺序返回预设消息；超出后重复最后一条，用于模拟“模型一直要求调工具”。\"\"\"\n\n    def __init__(self, messages):\n        self.messages = messages\n        self.calls = 0\n        self.last_kwargs = None\n\n    def create(self, **kwargs):\n        self.last_kwargs = kwargs\n        index = min(self.calls, len(self.messages) - 1)\n        self.calls += 1\n        return SimpleNamespace(choices=[SimpleNamespace(message=self.messages[index])])\n\n\ndef _fake_client(completions):\n    return SimpleNamespace(chat=SimpleNamespace(completions=completions))\n\n\nclass AgentLoopTest(unittest.TestCase):\n    def test_default_max_steps_is_10(self):\n        default = inspect.signature(agent.run_agent).parameters[\"max_steps\"].default\n        self.assertEqual(default, 10)\n\n    def test_stops_at_max_steps_without_infinite_loop(self):\n        completions = FakeCompletions([_message(tool_calls=[_tool_call()])])\n        client = _fake_client(completions)\n        with patch.object(agent, \"build_client\", return_value=(client, \"fake-model\")):\n            answer, trace = agent.run_agent(\"分析仓库\", max_steps=3)\n\n        self.assertIn(\"已达到最大步数 3\", answer)\n        self.assertEqual(completions.calls, 3)  # 只请求了 max_steps 次，证明不会死循环\n        self.assertEqual(trace[-1][\"stop_reason\"], \"max_steps\")\n        tool_records = [item for item in trace if \"tool\" in item]\n        self.assertEqual(len(tool_records), 3)\n        tool_messages = [m for m in completions.last_kwargs[\"messages\"] if m[\"role\"] == \"tool\"]\n        self.assertEqual(len(tool_messages), 3)\n        self.assertTrue(tool_messages[0][\"content\"].startswith(\"[step 1] \"))\n\n    def test_returns_final_answer_and_marks_stop_reason(self):\n        completions = FakeCompletions([\n            _message(tool_calls=[_tool_call()]),\n            _message(content=\"最终回答\"),\n        ])\n        client = _fake_client(completions)\n        with patch.object(agent, \"build_client\", return_value=(client, \"fake-model\")):\n            answer, trace = agent.run_agent(\"分析仓库\")\n\n        self.assertEqual(answer, \"最终回答\")\n        self.assertEqual(completions.calls, 2)\n        self.assertEqual(trace[-1], {\"step\": 2, \"stop_reason\": \"final_answer\"})\n\n    def test_tool_exception_is_fed_back_and_loop_continues(self):\n        def boom(**kwargs):\n            raise RuntimeError(\"模拟工具失败\")\n\n        completions = FakeCompletions([\n            _message(tool_calls=[_tool_call(name=\"boom\")]),\n            _message(content=\"已根据错误调整\"),\n        ])\n        client = _fake_client(completions)\n        with patch.object(agent, \"build_client\", return_value=(client, \"fake-model\")), \\\n                patch.dict(agent.TOOL_MAP, {\"boom\": boom}):\n            answer, trace = agent.run_agent(\"分析仓库\")\n\n        self.assertEqual(answer, \"已根据错误调整\")\n        tool_record = [item for item in trace if \"tool\" in item][0]\n        self.assertTrue(tool_record[\"result\"].startswith(\"工具调用失败：RuntimeError\"))\n        fed_back = [m for m in completions.last_kwargs[\"messages\"] if m[\"role\"] == \"tool\"][0]\n        self.assertIn(\"[step 1] 工具调用失败：RuntimeError\", fed_back[\"content\"])\n        self.assertEqual(completions.calls, 2)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+    }
+  },
+  {
+    "step": 3,
+    "tool": "get_file_content",
+    "arguments": {
+      "owner": "23101943",
+      "repo": "github-project-agent",
+      "path": ".github/workflows/tests.yml"
     },
     "result": {
       "ok": true,
@@ -218,17 +317,69 @@
     }
   },
   {
+    "step": 3,
+    "tool": "get_file_content",
+    "arguments": {
+      "owner": "23101943",
+      "repo": "github-project-agent",
+      "path": "requirements.txt"
+    },
+    "result": {
+      "ok": true,
+      "path": "requirements.txt",
+      "size": 543,
+      "lines": 31,
+      "truncated": false,
+      "content": "﻿aiohappyeyeballs==2.7.1\naiohttp==3.14.5\naiosignal==1.4.0\nannotated-types==0.8.0\nanyio==4.16.0\nattrs==26.1.0\ncertifi==2026.10.23\ncharset-normalizer==3.5.2\ncolorama==0.4.6\nfrozenlist==1.8.0\nh11==0.16.0\nhttpcore==1.0.9\nhttpcore2==2.16.0\nhttpx==0.28.1\nhttpx2==2.16.0\nidna==3.20\njiter==0.19.0\nmultidict==7.2.1\nopenai==3.46.0\npropcache==0.5.4\npydantic==2.14.3\npydantic_core==2.50.4\npython-dotenv==1.2.4\nrequests==2.34.2\nsniffio==1.3.1\ntqdm==4.70.1\ntruststore==0.10.5\ntyping-inspection==0.4.5\ntyping_extensions==4.16.0\nurllib3==2.8.0\nyarl==1.25.1\n"
+    }
+  },
+  {
+    "step": 3,
+    "tool": "get_file_content",
+    "arguments": {
+      "owner": 23101943,
+      "repo": "github-project-agent",
+      "path": ".env.example"
+    },
+    "result": {
+      "ok": true,
+      "path": ".env.example",
+      "size": 184,
+      "lines": 4,
+      "truncated": false,
+      "content": "LLM_API_KEY=你的 DeepSeek API Key\nLLM_BASE_URL=https://api.deepseek.com/v1\nLLM_MODEL=deepseek-flash\nGITHUB_TOKEN=你的 GitHub Personal Access Token（只需公开仓库读权限）\n"
+    }
+  },
+  {
     "step": 4,
-    "assistant_content": "再看 `github_client.py`，以说明工具层背后的调用路径。",
+    "assistant_content": "补充检查报告生成脚本与敏感文件忽略配置。",
     "tool_calls": [
       {
-        "id": "call_00_ErMFbUuryLFbMsLyFHyb4494",
+        "id": "call_00_CeVOcYiChXr2a4WobiBY0476",
         "function": {
-          "arguments": "{\"owner\": \"23101943\", \"path\": \"github_client.py\", \"repo\": \"github-project-agent\"}",
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"make_report.py\"}",
           "name": "get_file_content"
         },
         "type": "function",
         "index": 0
+      },
+      {
+        "id": "call_01_OPpQnEDFpMvbxMHwNp7Z6392",
+        "function": {
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \".gitignore\"}",
+          "name": "get_file_content"
+        },
+        "type": "function",
+        "index": 1
+      },
+      {
+        "id": "call_02_Kl35tmupzvucd2NGTBkp8376",
+        "function": {
+          "arguments": "{\"owner\": \"23101943\", \"repo\": \"github-project-agent\", \"path\": \"run_tools_demo.py\"}",
+          "name": "get_file_content"
+        },
+        "type": "function",
+        "index": 2
       }
     ]
   },
@@ -237,21 +388,59 @@
     "tool": "get_file_content",
     "arguments": {
       "owner": "23101943",
-      "path": "github_client.py",
-      "repo": "github-project-agent"
+      "repo": "github-project-agent",
+      "path": "make_report.py"
     },
     "result": {
       "ok": true,
-      "path": "github_client.py",
-      "size": 3951,
-      "lines": 108,
+      "path": "make_report.py",
+      "size": 1894,
+      "lines": 49,
       "truncated": false,
-      "content": "\"\"\"GitHub API 客户端：自动带 Token、区分错误类型、限流退避一次。\"\"\"\n\nimport os\nimport time\n\nimport httpx\n\nGITHUB_API = \"https://api.github.com\"\n\n\nclass GitHubClient:\n    \"\"\"封装 GitHub REST API 调用，错误以结构化 dict 返回，不静默吞掉。\"\"\"\n\n    def __init__(self, token: str | None = None, base_url: str = GITHUB_API):\n        self.token = token or os.getenv(\"GITHUB_TOKEN\", \"\")\n        self.base_url = base_url\n        self.headers = {\n            \"Accept\": \"application/vnd.github+json\",\n            \"User-Agent\": \"github-project-agent\",\n        }\n        if self.token:\n            self.headers[\"Authorization\"] = f\"Bearer {self.token}\"\n        self.client = httpx.Client(base_url=self.base_url, headers=self.headers, timeout=20)\n        self.last_rate = {}\n\n    def _record_rate(self, resp: httpx.Response) -> None:\n        self.last_rate = {\n            \"limit\": resp.headers.get(\"X-RateLimit-Limit\"),\n            \"remaining\": resp.headers.get(\"X-RateLimit-Remaining\"),\n            \"reset\": resp.headers.get(\"X-RateLimit-Reset\"),\n        }\n\n    def get(self, path: str, params: dict | None = None, _retried: bool = False) -> dict:\n        if not self.token:\n            return {\n                \"ok\": False,\n                \"status\": 401,\n                \"error_type\": \"missing_token\",\n                \"message\": \"未配置 GITHUB_TOKEN，请在 .env 中设置后重试。\",\n            }\n\n        try:\n            resp = self.client.get(path, params=params)\n        except httpx.HTTPError as exc:\n            return {\n                \"ok\": False,\n                \"status\": 0,\n                \"error_type\": \"network\",\n                \"message\": f\"网络请求失败：{exc.__class__.__name__}，请检查网络后重试。\",\n            }\n        self._record_rate(resp)\n\n        if resp.status_code == 401:\n            return {\n                \"ok\": False,\n                \"status\": 401,\n                \"error_type\": \"auth\",\n                \"message\": \"Token 无效或已过期，请重新生成。\",\n            }\n\n        if resp.status_code == 404:\n            return {\n                \"ok\": False,\n                \"status\": 404,\n                \"error_type\": \"not_found\",\n                \"message\": \"资源不存在或当前 Token 无权访问。\",\n            }\n\n        if resp.status_code == 403 or resp.status_code == 429:\n            retry_after = resp.headers.get(\"Retry-After\")\n            remaining = resp.headers.get(\"X-RateLimit-Remaining\")\n            is_rate_limited = resp.status_code == 429 or remaining == \"0\" or retry_after is not None\n            if is_rate_limited and not _retried:\n                wait = int(retry_after) if retry_after and retry_after.isdigit() else 60\n                time.sleep(wait)\n                return self.get(path, params=params, _retried=True)\n            return {\n                \"ok\": False,\n                \"status\": resp.status_code,\n                \"error_type\": \"rate_limit\" if is_rate_limited else \"forbidden\",\n                \"message\": \"触发 GitHub 限流，已退避重试一次仍失败。\" if is_rate_limited else \"当前 Token 权限不足。\",\n                \"retry_after\": retry_after,\n            }\n\n        if resp.status_code >= 400:\n            return {\n                \"ok\": False,\n                \"status\": resp.status_code,\n                \"error_type\": \"http_error\",\n                \"message\": f\"GitHub 返回错误：{resp.status_code}\",\n            }\n\n        try:\n            data = resp.json()\n        except ValueError:\n            return {\n                \"ok\": False,\n                \"status\": resp.status_code,\n                \"error_type\": \"bad_response\",\n                \"message\": \"GitHub 返回了非 JSON 内容，可能是网关错误页。\",\n            }\n\n        return {\n            \"ok\": True,\n            \"status\": resp.status_code,\n            \"data\": data,\n            \"rate\": self.last_rate,\n        }\n"
+      "content": "\"\"\"任务09：CLI 输入仓库地址与分析需求，让 Agent 生成带证据的项目分析报告。\"\"\"\n\nimport argparse\nimport json\n\nfrom dotenv import load_dotenv\n\nfrom agent import run_agent\n\nDEFAULT_REPO = \"https://github.com/23101943/github-project-agent\"\n\n\ndef _repo_slug(repo: str) -> str:\n    \"\"\"把仓库地址或 owner/repo 统一成 23101943/github-project-agent 形式。\"\"\"\n    text = repo.strip().rstrip(\"/\")\n    if \"github.com/\" in text:\n        text = text.split(\"github.com/\", 1)[1]\n    return text[:-4] if text.endswith(\".git\") else text\n\n\ndef _default_question(repo: str) -> str:\n    slug = _repo_slug(repo)\n    return (\n        f\"分析仓库 {slug}（地址 {repo}）：先用 get_repo_info 和 get_file_tree 了解整体，\"\n        \"再读取 agent.py、tools.py、github_client.py 等关键文件，\"\n        \"最后输出一份带证据的项目分析报告，结构为「概况 / 结构 / 关键文件 / 结论与建议」，\"\n        \"每条关键结论后标注对应工具调用步骤，例如 [见 trace step 2]。\"\n    )\n\n\ndef main() -> None:\n    load_dotenv()\n    parser = argparse.ArgumentParser(description=\"生成带证据的 GitHub 项目分析报告\")\n    parser.add_argument(\"--repo\", default=DEFAULT_REPO, help=\"GitHub 仓库地址或 owner/repo\")\n    parser.add_argument(\"--question\", default=\"\", help=\"自定义分析需求；不传则使用默认报告需求\")\n    args = parser.parse_args()\n\n    question = args.question.strip() or _default_question(args.repo.strip())\n    report, trace_log = run_agent(question, max_steps=10)\n    with open(\"REPORT.md\", \"w\", encoding=\"utf-8\") as f:\n        f.write(report)\n    with open(\"agent_trace.json\", \"w\", encoding=\"utf-8\") as f:\n        json.dump(trace_log, f, ensure_ascii=False, indent=2)\n    print(report)\n    print(\"\\n[已写入 REPORT.md 与 agent_trace.json]\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+    }
+  },
+  {
+    "step": 4,
+    "tool": "get_file_content",
+    "arguments": {
+      "owner": "23101943",
+      "repo": "github-project-agent",
+      "path": ".gitignore"
+    },
+    "result": {
+      "ok": true,
+      "path": ".gitignore",
+      "size": 30,
+      "lines": 4,
+      "truncated": false,
+      "content": ".env\nvenv/\n__pycache__/\n*.pyc\n"
+    }
+  },
+  {
+    "step": 4,
+    "tool": "get_file_content",
+    "arguments": {
+      "owner": "23101943",
+      "repo": "github-project-agent",
+      "path": "run_tools_demo.py"
+    },
+    "result": {
+      "ok": true,
+      "path": "run_tools_demo.py",
+      "size": 713,
+      "lines": 24,
+      "truncated": false,
+      "content": "\"\"\"真实请求演示：用本地 Token 调用仓库信息 / 文件树 / 文件内容三个工具。\"\"\"\n\nimport json\n\nfrom dotenv import load_dotenv\n\nimport tools\n\nload_dotenv()\n\nOWNER, REPO = \"23101943\", \"github-project-agent\"\n\n\ndef show(title, data):\n    print(f\"\\n== {title} ==\")\n    print(json.dumps(data, ensure_ascii=False, indent=1)[:1200])\n\n\nshow(\"仓库信息\", tools.get_repo_info(OWNER, REPO))\nshow(\"文件树\", tools.get_file_tree(OWNER, REPO))\ncontent = tools.get_file_content(OWNER, REPO, \"github_client.py\")\nshow(\"文件内容 github_client.py\",\n     {\"ok\": content.get(\"ok\"), \"size\": content.get(\"size\"),\n      \"truncated\": content.get(\"truncated\"), \"head\": (content.get(\"content\") or \"\")[:200]})\n"
     }
   },
   {
     "step": 5,
-    "assistant_content": "## 一、仓库概览\n\n| 项目 | 值（来源：仓库元数据） |\n|---|---|\n| 全名 | 23101943/github-project-agent |\n| 默认分支 / 语言 | main / Python |\n| Star / Fork / Open issues | 0 / 0 / 0 |\n| 描述 | 未填写（description 为 None） |\n\n文件树共 15 个文件：核心三件套 `agent.py`（LLM 循环）、`tools.py`(工具+Schema)、`github_client.py`（HTTP 封装），配套两个单测 `test_github_client.py`、`test_github_tools.py`，加 `run_tools_demo.py`、`make_report.py`、`agent_trace.json`、`run_log.txt`、`REPORT.md` 等演示/文档产物。\n\n## 二、对外暴露的 4 个工具（`tools.py`）\n\n`tools.py` 全部 213 行，我读到前 200 行（截断部分是 `get_file_content` 的 schema 参数声明与 `TOOLS` 列表收尾），四个函数体均完整可见。\n\n| 工具名 | 签名 | 实际调用 | 关键行为 |\n|---|---|---|---|\n| `get_current_time` | `(timezone=\"Asia/Shanghai\") -> str` | 无网络，`zoneinfo.ZoneInfo` | 返回 `YYYY-MM-DD HH:MM:SS %Z`；`ZoneInfoNotFoundError` 时回退 `_FALLBACK_OFFSETS`（仅 Asia/Shanghai=8、UTC=0），其余抛 `ValueError(\"未知时区…\")` |\n| `get_repo_info` | `(owner, repo) -> dict` | `GET /repos/{owner}/{repo}` | 把 GitHub 原始字段裁剪映射为 `stars`/`forks`/`open_issues` 等；`ok=False` 时原样透传错误 dict |\n| `get_file_tree` | `(owner, repo, branch=\"main\") -> dict` | `GET /repos/{owner}/{repo}/git/trees/{branch}` + `recursive=1` | 只保留 `type==\"blob\"` 的路径，`count` 为过滤后全量、`files` 截断到 `MAX_TREE_ENTRIES=200`，`truncated` 同时考虑 API 自带的 `truncated` |\n| `get_file_content` | `(owner, repo, path, ref=\"main\", max_bytes=100_000, max_lines=200) -> dict` | `GET /repos/{owner}/{repo}/contents/{path}` | base64 解码后分五种返回：超 `max_bytes` 或 `encoding==\"none\"` → 仅元数据；含 `\\x00` → 判二进制仅元数据；空串 → `message:\"空文件。\"`；超 200 行 → 返回前 200 行并附提示；否则原文 |\n\n值得注意的设计：错误不抛异常，统一以 `{\"ok\": False, \"error_type\": ...}` 结构化返回；`_get_client()` 是懒加载的模块级单例（首次调用时才读 `GITHUB_TOKEN`）。\n\n## 三、注册与分发机制\n\n注册是\"函数表 + Schema 表\"双轨制，两处必须手工保持一致：\n\n1. `tools.py`：`TOOL_FUNCTIONS`（name→callable，4 项）与 `TOOLS`（OpenAI function-calling 格式的 JSON Schema 列表，4 项）。\n2. `agent.py`：`from tools import TOOL_FUNCTIONS, TOOLS`；`build_client()` 从 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 组装 OpenAI 兼容客户端（默认 `https://api.deepseek.com/v1`、`deepseek-flash`），缺 key 抛 `RuntimeError`。\n3. 调用环：`client.chat.completions.create(model, messages, tools=TOOLS)` → 无 `tool_calls` 即返回终答 → 否则把 assistant 的 `tool_calls` 回填，逐个 `TOOL_FUNCTIONS.get(name)` 分发、`json.loads(arguments)`（解析失败降级为 `{}`）、`func(**args)`，结果以 `role:\"tool\"` + `tool_call_id` 回喂。\n4. 三重护栏：未知工具返回 `\"未知工具：{name}\"`；工具异常被 `except Exception` 捕获为 `\"工具调用失败：{类名}: {msg}\"` 继续循环；`max_steps`（默认 6）用尽返回安全停止提示。\n\n## 四、测试覆盖的路径\n\nCI（`.github/workflows/tests.yml`）只跑 `python -m unittest -v test_github_client test_github_tools`，且只 `pip install httpx`——全部 mock，无需 token/网络，Python 3.12。\n\n**已覆盖（`test_github_tools.py`，用 `FakeClient` 替换 `tools._client`）**\n\n| 用例 | 验证路径 |\n|---|---|\n| `RepoInfoTest.test_extracts_fields` | 字段映射成功、`stars==3` |\n| `FileTreeTest.test_keeps_only_blobs_and_truncates_overlong_list` | 250 blob + 1 tree 节点 → `count==250`、目录被过滤、`files` 恰 200 条且末项 `f199.py` |\n| `FileContentTest.test_decodes_small_file` | 小文件正常解码、`lines==1` |\n| `…test_empty_file_is_friendly` | 空文件分支（`lines==0`、`message==\"空文件。\"`） |\n| `…test_binary_content_returns_metadata_only` | NUL 字节二进制分支（`binary=True`、无 `content` 键） |\n| `…test_truncates_at_200_lines` | 250 行 → 200 行 + \"仅返回前 200 行\" |\n| `…test_oversize_returns_metadata_only` | 500KB → 仅元数据 |\n| `…test_propagates_error` | 404 错误 dict 透传（`error_type==\"not_found\"`） |\n\n**已覆盖（`test_github_client.py`，`mock.patch.object` 打桩 httpx）**\n\n| 用例 | 验证路径 |\n|---|---|\n| `test_401_returns_auth_error` | 401 → `error_type==\"auth\"` |\n| `test_404_returns_not_found` | 404 → `error_type==\"not_found\"` |\n| `test_403_rate_limit_retries_once_then_returns_error` | 限流分支：两次 403、`sleep` 恰好调用 1 次、最终 `rate_limit` |\n\n**明显未覆盖的路径（据上述两文件逐条比对得出，非猜测）**\n\n- `get_current_time` 零测试：正常时区、`_FALLBACK_OFFSETS` 回退、未知时区 `ValueError` 三条都无。\n- `github_client.py` 中：`missing_token`（无 token 早退）、`network`（`httpx.HTTPError`）、`forbidden`（403 但非限流）、`http_error`（500 等 ≥400）、`bad_response`（非 JSON 正文）、429 状态码分支、`_record_rate` 的 `last_rate` 内容，均无用例——限流重试只验了 Retry-After 路径，未验 `remaining==\"0\"` 或无 header 时默认 `sleep(60)`。\n- `agent.py` 完全零测试：`build_client` 缺 key 报错、system prompt、工具分发、`json.JSONDecodeError` 降级 `{}`、未知工具文案、工具异常回喂、`max_steps` 耗尽提示、`--trace` 落盘 `agent_trace.json` 均无覆盖。CI 也没装 `openai`/`python-dotenv`，即无法导入 `agent.py`。\n- `run_tools_demo.py`、`make_report.py` 未见测试引用。\n\n## 五、风险与建议（基于代码证据）\n\n1. **`apply` 与 Schema 手工同步**：`TOOL_FUNCTIONS` 和 `TOOLS` 是两份独立字面量，新增工具漏改任一处会导致\"Schema 里有但分发不到\"或反之。建议单一注册表（如 `@tool` 装饰器从函数签名生成 schema）或加断言测试 `set(TOOL_FUNCTIONS) == {t[\"function\"][\"name\"] for t in TOOLS}`。\n2. **`agent.py` 无测试是最薄环节**：循环控制流（尤其是异常回喂与 `max_steps`）是行为正确性的核心，却完全依赖人工 demo。可用 fake OpenAI client 补 3~5 个用例。\n3. **`trace` 参数在 `run_agent` 内未使用**：`run_agent(question, trace=...)` 的 `trace` 形参既不过滤也不落盘，写文件只发生在 `main()` 里（`agent.py`），传参语义有误导。\n4. **`trace_log` 里 `msg.tool_calls and [...]`**：`tool_calls` 为空时该表达式求值为 `None` 而非 `[]`，下游若按键类型消费需注意。\n5. **`get_file_tree` 未对 `branch` 做 URL 编码**，分支名含 `/`（如 `feature/x`）会拼出错路径；`get_file_content` 的 `path` 同理。\n6. **限流退避 `wait` 无上限**：`int(retry_after)` 若返回大值会长时间阻塞（`github_client.py`），建议加 cap；`test_github_client.py` 里 `sleep` 已被 mock，故测试掩盖了真实等待时长问题。",
+    "assistant_content": "# github-project-agent 项目分析报告\n\n> 证据来源为下方 trace step：step 1 = `get_repo_info` + `get_file_tree`；step 2 = 读取 `agent.py` / `tools.py` / `github_client.py` / `README.md`；step 3 = 读取三个测试文件 + `.github/workflows/tests.yml` + `requirements.txt` + `.env.example`；step 4 = 读取 `make_report.py` + `.gitignore` + `run_tools_demo.py`。\n\n## 概况\n\n| 项 | 值 |\n|---|---|\n| 全名 | `23101943/github-project-agent` |\n| 描述 | 空（未填写仓库描述） |\n| 默认分支 / 语言 | `main` / Python |\n| Star / Fork / Issue | 0 / 0 / 0 |\n| 最近更新 | 2026-11-08 |\n| 文件总数 | 18（扁平结构，无包目录） |\n\n- 定位是一个可调用工具的**多步 Agent**：用 DeepSeek（OpenAI 兼容 SDK）驱动，通过 GitHub REST API 获取真实仓库数据 [见 trace step 2，README.md]。\n- 项目体量很小、无分发包配置（无 `pyproject.toml`/`setup.py`），属于教学/练习型工程：功能闭环（工具层 → HTTP 层 → Agent 循环 → 测试 → CI → 演示脚本 → 报告生成）但未产品化 [见 trace step 1，文件清单]。\n- README 明确列出\"安全边界\"四条：Token 仅从环境变量读、工具走白名单、内容大小上限、`--max-steps` 到点即停 [见 trace step 2，README.md]。\n\n## 结构\n\n清晰的三层架构 + 测试 + 配套脚本：\n\n```\nagent.py              第3层：CLI + 多步工具调用循环\ntools.py              第2层：4 个工具函数 + JSON Schema + TOOL_MAP 白名单\ngithub_client.py      第1层：httpx 封装 GitHub REST，错误分类 + 限流退避\ntest_github_client.py / test_github_tools.py / test_agent_loop.py   单测（全 mock）\n.github/workflows/tests.yml   CI\nrun_tools_demo.py / run_selection_demo.py / make_report.py          演示与报告脚本\nREPORT.md / agent_trace.json / run_log.txt / tool_selection_log.txt 产物（已提交入库）\n```\n\n- 依赖方向单向：`github_client.py` 不依赖上层，`tools.py` 依赖 `github_client`，`agent.py` 只依赖 `TOOL_MAP/TOOLS`，分层干净、无循环导入 [见 trace step 2，三个核心文件的 import 段]。\n- 单测采用 unittest + mock/假客户端，**不需要真实 Token 和网络**，可 CI 化 [见 trace step 3，test_github_tools.py 的 `FakeClient`、test_github_client.py 的 `mock.patch`]。\n\n## 关键文件\n\n### 1. `agent.py`（101 行）— 循环与安全上限\n- `run_agent()` 用 `while step < max_steps` 驱动：每次调用 `client.chat.completions.create(model, messages, tools=TOOLS)`，无 `tool_calls` 即视为最终答案并记录 `stop_reason: final_answer`；否则把 assistant 的 tool_calls 与每条 tool 结果（带 `[step N]` 前缀）回填 messages [见 trace step 2，agent.py]。\n- 工具派发走白名单 `TOOL_MAP.get(name)`，未知工具返回\"未知工具：X\"而不抛错；工具异常被捕获成\"工具调用失败：...\" 回喂模型，让循环继续而非整体崩溃 [见 trace step 2，agent.py]。\n- 达到 `max_steps` 后返回固定提示文案并记录 `stop_reason: max_steps`，防止死循环 [见 trace step 2，agent.py]。\n- 缺陷 1：`run_agent(question, trace: bool = False, ...)` 的 **`trace` 参数在函数体内完全未被使用**，是否落盘只由 `main()` 里的 `--trace` 分支决定——死参数，易误用 [见 trace step 2，agent.py]。\n- 缺陷 2：`json.loads(tc.function.arguments)` 失败时静默退化为 `args = {}`，模型传入畸形参数会被当成\"空参数\"执行，可能产生误导性结果而非可纠正的错误反馈 [见 trace step 2，agent.py]。\n- 缺陷 3：`trace_log` 里同一轮多个 tool_calls 共用同一 `step` 编号，且 `max_steps` 实际限制的是\"模型调用轮次\"而非\"工具调用数\"，语义与名称不完全一致（现有测试以单 tool_call/轮为前提，未覆盖并行多工具场景）[见 trace step 2，agent.py；见 trace step 3，test_agent_loop.py]。\n\n### 2. `tools.py`（213 行）— 工具层与 Schema\n- 4 个工具：`get_current_time`、`get_repo_info`、`get_file_tree`、`get_file_content`；后三者返回结构化 dict，`ok=False` 时直接透传 HTTP 层错误 [见 trace step 2，tools.py]。\n- 硬上限常量：`MAX_FILE_BYTES = 100_000`、`MAX_FILE_LINES = 200`、`MAX_TREE_ENTRIES = 200`，超限返回 `truncated: True` + 提示，避免上下文爆炸 [见 trace step 2，tools.py]。\n- 健壮性细节做得好：base64 解码后检测 `\\x00` 判定二进制、空文件、\"encoding == none\" 大文件三种情况分别友好返回；`get_file_tree` 只保留 `type == \"blob\"` 过滤目录节点 [见 trace step 2，tools.py]；这些分支均有对应单测 [见 trace step 3，test_github_tools.py]。\n- 缺陷 1：`get_file_content` 只截断返回**前 200 行**且**不支持 offset/续读参数**，超过 200 行的文件（如本仓库 `tools.py` 本身 213 行）后半部分模型永远读不到——我在本次分析中就遇到了这个限制（tools.py 返回 truncated）[见 trace step 2，tools.py 返回 `truncated: True`]。\n- 缺陷 2：`get_file_tree` 的 `branch` 默认硬编码 `\"main\"`，不读取 `get_repo_info` 返回的 `default_branch`，对默认分支为 `master` 的仓库会直接 404 [见 trace step 2，tools.py]。\n- 缺陷 3：`_client` 作为模块级全局单例缓存，Token/环境变化后不会重建，在测试中需手工 `tools._client = fake` 才能隔离 [见 trace step 2，tools.py；见 trace step 3，test_github_tools.py 的 `use_fake`]。\n- `TOOL_MAP` 与 `TOOLS` Schema 的一致性有专门的元测试守护（函数名集合相等、required 必须在 properties 中、Schema 参数必须存在于函数签名），这是本项目质量亮点 [见 trace step 3，test_github_tools.py 的 `ToolRegistryTest`]。\n\n### 3. `github_client.py`（108 行）— HTTP 与错误分类\n- Token 从 `os.getenv(\"GITHUB_TOKEN\")` 读取，缺失时直接返回 `error_type: missing_token` 而不发请求；headers 带 `Accept: application/vnd.github+json` 与固定 `User-Agent` [见 trace step 2，github_client.py]。\n- 错误分类完整且结构化（不吞异常）：`network` / `auth`(401) / `not_found`(404) / `rate_limit` / `forbidden`(403) / `http_error`(≥400) / `bad_response`(非 JSON，判断网关错误页) [见 trace step 2，github_client.py]。\n- 限流处理：403/429 时综合判断 `Retry-After`、`X-RateLimit-Remaining == \"0\"`、状态码 429，命中则 `time.sleep(wait)` 后**仅重试一次**（`_retried` 标志位），并用 `_record_rate` 记录 limit/remaining/reset [见 trace step 2，github_client.py]。\n- 缺陷 1：`Retry-After` 非数字时 `wait = 60`，即**同步阻塞最长 60 秒**，CLI 体验差且无日志告知用户正在等待；单测里靠 patch `time.sleep` 规避 [见 trace step 2，github_client.py；见 trace step 3，test_github_client.py]。\n- 缺陷 2：**无 5xx 重试、无分页支持（per_page/page）**，大仓库文件树只取一页；`httpx.Client` 也未在进程退出时显式 `close()`，属资源泄漏小隐患 [见 trace step 2，github_client.py]。\n- 缺陷 3：403 分支里 `is_rate_limited` 的判定条件较宽（有 `Retry-After` 即视为限流），GitHub 的 abuse-detection 与权限不足在语义上会被混为一类，仅靠 message 文案区分 [见 trace step 2，github_client.py]。\n\n### 4. 工程配套\n- `make_report.py` 直接把一段固定提问（正是本次任务的题干）交给 `run_agent(max_steps=10)`，并落盘 `REPORT.md` + `agent_trace.json`，说明\"带证据报告\"是项目设计内的核心用例 [见 trace step 4，make_report.py]。\n- 安全卫生良好：`.gitignore` 忽略 `.env`、`venv/`、`__pycache__`；`.env.example` 只有占位符，无明文凭据 [见 trace step 3 `.env.example`；见 trace step 4 `.gitignore`]。\n- 但运行产物 `agent_trace.json`、`run_log.txt`、`tool_selection_log.txt`、`REPORT.md` 被提交入库，需确认其中不含 Token 或敏感请求头（现有代码不打印 header，风险低）[见 trace step 1，文件清单]。\n\n## 结论与建议\n\n**结论**\n\n1. 这是一个结构清晰、分层规范的小型工具调用 Agent 范例：三层单向依赖 + 白名单派发 + 结构化错误 + 明确的大小与步数上限，安全边界设计是本项目最大优点 [见 trace step 2，README.md 与三个核心文件]。\n2. 测试覆盖是全 mock 的、可离线运行的，且包含 Schema 一致性的元测试，工程意识超出一般练习项目 [见 trace step 3，test_github_tools.py]。\n3. 主要短板集中在**未完成的部分**与**边界参数**上：trace 死参数、200 行不可续读、分支硬编码、阻塞式退避、CI 覆盖不全 [见 trace step 2、step 3]。\n\n**建议（按优先级）**\n\n1. **修正 CI 覆盖缺口（高）**：`.github/workflows/tests.yml` 只跑 `test_github_client test_github_tools`，且只 `pip install httpx`；`test_agent_loop.py` 的 4 个用例（含 max_steps 死循环防护、异常回喂）从未在 CI 中执行。建议改为 `pip install -r requirements.txt` 并运行 `python -m unittest discover` [见 trace step 3]。\n2. **文档与实测口径不一致（中）**：README 运行说明写\"5 个用例\"，目录结构段落写\"14 个单测\"，实际两模块共 14 个、加上 `test_agent_loop.py` 共 18 个；`test_agent_loop.py` 也未出现在目录结构清单中。建议统一为实际数字并补录该文件 [见 trace step 2 README.md；见 trace step 3 三个测试文件]。\n3. **给 `get_file_content` 增加 `line_offset`/分页续读（高）**：当前 200 行截断会让模型对中大型文件\"只看到开头\"，直接影响分析结论完整性（本次读 `tools.py` 即被截断）[见 trace step 2，tools.py 返回 `truncated: True`]。\n4. **默认分支与全局单例改造（中）**：`get_file_tree` 的 `branch` 应允许由调用方从 `get_repo_info` 的 `default_branch` 传入（System Prompt 中加一句引导即可）；`_client` 改为显式 `init_client()` 或在 token 变化时重建，便于测试与多环境切换 [见 trace step 2，tools.py]。\n5. **清理死参数与静默降级（中）**：删除 `run_agent` 未使用的 `trace` 形参；参数 JSON 解析失败时回喂\"参数解析失败：<原文>\"给模型而不是悄悄替换成 `{}`；为并行多 tool_call 分配独立子步编号使 trace 更精确 [见 trace step 2，agent.py]。\n6. **退避与重试策略（低）**：把 `time.sleep` 换成带上限的指数退避 + 日志提示（避免 CLI 无响应 60 秒），补充 5xx 重试与 `httpx.Client` 的 `close()`/上下文管理 [见 trace step 2，github_client.py]。\n7. **依赖清单收敛（低）**：`requirements.txt` 是 `pip freeze` 全量快照，含 `httpx2`、`httpcore2`、`requests`、`tqdm` 等非直接依赖；建议改为直接依赖（`openai`、`httpx`、`python-dotenv`）并加 `requirements-dev.txt` [见 trace step 3，requirements.txt]。\n\n**一句话评价**：作为\"可审计的多步工具调用 Agent\"教学实现，它在安全边界与测试意识上完成度较高；把它推到可用状态，差的不是架构，而是 200 行截断的续读能力、CI 的测试覆盖和几处参数/文档的一致性收尾 [见 trace step 2、step 3]。",
     "tool_calls": null
+  },
+  {
+    "step": 5,
+    "stop_reason": "final_answer"
   }
 ]

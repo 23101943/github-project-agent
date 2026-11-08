@@ -161,7 +161,7 @@ class ToolRegistryTest(unittest.TestCase):
 
     def test_functions_and_schema_names_match(self):
         schema_names = {spec["function"]["name"] for spec in tools.TOOLS}
-        self.assertEqual(schema_names, set(tools.TOOL_FUNCTIONS))
+        self.assertEqual(schema_names, set(tools.TOOL_MAP))
 
     def test_schema_required_and_descriptions(self):
         for spec in tools.TOOLS:
@@ -181,7 +181,7 @@ class ToolRegistryTest(unittest.TestCase):
         import inspect
         for spec in tools.TOOLS:
             fn = spec["function"]
-            func = tools.TOOL_FUNCTIONS[fn["name"]]
+            func = tools.TOOL_MAP[fn["name"]]
             allowed = set(inspect.signature(func).parameters)
             for key in fn["parameters"]["properties"]:
                 self.assertIn(key, allowed, f"{fn['name']} Schema 中的 {key} 不在函数签名里")

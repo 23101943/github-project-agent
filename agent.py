@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from tools import TOOL_FUNCTIONS, TOOLS
+from tools import TOOL_MAP, TOOLS
 
 
 def build_client() -> tuple[OpenAI, str]:
@@ -54,7 +54,7 @@ def run_agent(question: str, trace: bool = False, max_steps: int = 6) -> tuple[s
                 args = json.loads(tc.function.arguments or "{}")
             except json.JSONDecodeError:
                 args = {}
-            func = TOOL_FUNCTIONS.get(name)
+            func = TOOL_MAP.get(name)
             if not func:
                 result = f"未知工具：{name}"
             else:

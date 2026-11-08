@@ -44,7 +44,7 @@ GITHUB_TOKEN=你的 GitHub PAT（只需 public_repo 读权限）
 ```
 
 真实演示的期望输出（本机实测）：仓库信息 `language=Python, default_branch=main, stars=0`；
-文件树 `count=11, truncated=false`；读取 `github_client.py` 返回 `size=3951, truncated=false`。
+文件树 `count=15, truncated=false`；读取 `github_client.py` 返回 `size=3951, truncated=false`。
 
 完整的本机运行记录（命令 + 输出）见仓库根目录 `run_log.txt`。
 
@@ -54,14 +54,15 @@ GITHUB_TOKEN=你的 GitHub PAT（只需 public_repo 读权限）
 agent.py            CLI 入口与多步工具调用循环（--question/--trace/--max-steps）
 tools.py            工具层：get_current_time / get_repo_info / get_file_tree / get_file_content + JSON Schema
 github_client.py    HTTP 层：Token 鉴权、401/404/403+限流分类、Retry-After 退避一次
-test_github_client.py / test_github_tools.py   8 个单测
+test_github_client.py / test_github_tools.py   14 个单测
 run_tools_demo.py   真实请求演示脚本
+run_selection_demo.py  三类提问验证模型工具选择（生成 tool_selection_log.txt）
 make_report.py      生成带证据分析报告 REPORT.md
 ```
 
 ## 安全边界
 
 - Token 只从环境变量读取，源码与提交记录中不含明文凭据。
-- 工具派发走白名单 `TOOL_FUNCTIONS`，模型无法调用任意函数。
+- 工具派发走白名单 `TOOL_MAP`，模型无法调用任意函数。
 - 文件内容上限 100KB、文件树上限 200 项，超出只返回元数据/截断标记。
 - `--max-steps` 到点即停，避免无限循环。

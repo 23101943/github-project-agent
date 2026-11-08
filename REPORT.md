@@ -16,13 +16,13 @@
 
 ```
 agent.py            入口与 LLM 工具调用循环（argparse，--max-steps / --trace）
-  └─ tools.py       工具实现 + JSON Schema（TOOL_FUNCTIONS / TOOLS）
+  └─ tools.py       工具实现 + JSON Schema（TOOL_MAP / TOOLS）
       └─ github_client.py   httpx 封装：统一请求头、错误分类、限流退避一次
 test_github_client.py / test_github_tools.py   14 条 mock 单测
 run_tools_demo.py / make_report.py / run_log.txt / REPORT.md / agent_trace.json
 ```
 
-调用链：`run_agent` → `chat.completions.create(tools=TOOLS)` → `tool_calls` → `TOOL_FUNCTIONS[name](**args)` → `_get_client().get(...)` → 结构化成 dict 回填 `role:"tool"` → 再次请求模型。整条链路不依赖框架，只有 `openai` + `httpx` 两个直接依赖。
+调用链：`run_agent` → `chat.completions.create(tools=TOOLS)` → `tool_calls` → `TOOL_MAP[name](**args)` → `_get_client().get(...)` → 结构化成 dict 回填 `role:"tool"` → 再次请求模型。整条链路不依赖框架，只有 `openai` + `httpx` 两个直接依赖。
 
 ## 3. 四个工具（`tools.py`）
 
@@ -35,11 +35,11 @@ run_tools_demo.py / make_report.py / run_log.txt / REPORT.md / agent_trace.json
 
 设计一致性：工具失败不抛异常，统一返回 `{ok: False, status, error_type, message}`；`_get_client()` 懒加载模块级单例，避免重复建连。
 
-## 4. 注册与 Schema（`TOOL_FUNCTIONS` + `TOOLS`）
+## 4. 注册与 Schema（`TOOL_MAP` + `TOOLS`）
 
-- 双轨注册：`TOOL_FUNCTIONS` 提供 name→callable 分发，`TOOLS` 提供 OpenAI function-calling 的 JSON Schema 声明。
+- 双轨注册：`TOOL_MAP` 提供 name→callable 分发，`TOOLS` 提供 OpenAI function-calling 的 JSON Schema 声明。
 - 新增 `ToolRegistryTest` 三条断言保证两者不漂移：
-  1. `test_functions_and_schema_names_match`：Schema 名称集合 == `TOOL_FUNCTIONS` 键集合；
+  1. `test_functions_and_schema_names_match`：Schema 名称集合 == `TOOL_MAP` 键集合；
   2. `test_schema_required_and_descriptions`：`type=="function"`、函数有 description、`required` 必须出现在 `properties`、每个参数都有 `type` 与 `description`；
   3. `test_schema_params_exist_in_function_signature`：Schema 里的参数必须真实存在于函数签名（防止模型传进无效参数）。
 - `agent.py` 侧三重护栏：未知工具返回 `"未知工具：{name}"`；`func(**args)` 异常被 `except Exception` 捕获并回喂 `"工具调用失败：..."`；`max_steps` 用尽返回安全停止提示。

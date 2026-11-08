@@ -137,7 +137,7 @@ def get_file_content(owner: str, repo: str, path: str, ref: str = "main",
     }
 
 
-TOOL_FUNCTIONS = {
+TOOL_MAP = {
     "get_current_time": get_current_time,
     "get_repo_info": get_repo_info,
     "get_file_tree": get_file_tree,
